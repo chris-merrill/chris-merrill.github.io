@@ -1,0 +1,113 @@
+{
+            "bookmarks" : [
+              {
+                "category": "Direct",
+                "links": [
+                  {
+                    "name": "glances",
+                    "url": "http://192.168.1.3:480"
+                  },
+                  {
+                    "name": "jackett",
+                    "url": "http://192.168.1.3:9117"
+                  },
+                  
+                  {
+                    "name": "nextcloud",
+                    "url": "http://192.168.1.3:8020"
+                  },
+                  
+                  {
+                    "name": "NGINX proxy",
+                    "url": "http://192.168.1.3:81"
+                  },
+                  {
+                    "name": "Pi-hole",
+                    "url": "http://192.168.1.10/admin"
+                  },
+                  {
+                    "name": "plex media server",
+                    "url": "http://192.168.1.3:32400/web"
+                  },
+                  {
+                    "name": "portainer",
+                    "url": "http://192.168.1.3:9000"
+                  },                  
+                  {
+                    "name": "radarr",
+                    "url": "http://192.168.1.3:7878"
+                  },
+                  {
+                    "name": "sabnzbd",
+                    "url": "http://192.168.1.3:8080"
+                  },
+                  {
+                    "name": "sonarr",
+                    "url": "http://192.168.1.3:8989"
+                  },
+                  {
+                    "name": "transmission",
+                    "url": "http://192.168.1.3:9091"
+                  },
+                  {
+                    "name": "youtube-dl",
+                    "url": "http://192.168.1.3:8998"
+                  }
+                ]
+              },
+              {
+                "category": "Tailscale",
+                "links": [                                    {
+                    "name": "glances",
+                    "url": "http://100.117.204.40:480"
+                  },
+                  {
+                    "name": "jackett",
+                    "url": "http://100.117.204.40:9117"
+                  },
+                  
+                  {
+                    "name": "nextcloud",
+                    "url": "http://100.117.204.40:8020"
+                  },
+                  
+                  {
+                    "name": "NGINX proxy",
+                    "url": "http://100.117.204.40:81"
+                  },
+                  {
+                    "name": "Pi-hole",
+                    "url": "http://192.168.1.10/admin"
+                  },
+                  {
+                    "name": "plex media server",
+                    "url": "http://100.117.204.40:32400/web"
+                  },
+                  {
+                    "name": "portainer",
+                    "url": "http://100.117.204.40:9000"
+                  },                  
+                  {
+                    "name": "radarr",
+                    "url": "http://100.117.204.40:7878"
+                  },
+                  {
+                    "name": "sabnzbd",
+                    "url": "http://100.117.204.40:8080"
+                  },
+                  {
+                    "name": "sonarr",
+                    "url": "http://100.117.204.40:8989"
+                  },
+                  {
+                    "name": "transmission",
+                    "url": "http://100.117.204.40:9091"
+                  },
+                  {
+                    "name": "youtube-dl",
+                    "url": "http://100.117.204.40:8998"
+                  }
+                ]
+              }
+            ]
+        }

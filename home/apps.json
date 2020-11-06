@@ -1,0 +1,16 @@
+{
+    "apps" : [        
+        {"name":"Glances","url":"glances.cmerrill.org","icon":"monitor-eye"},
+        {"name":"Jackett","url":"jackett.merrills.io","icon":"tshirt-crew-outline"},
+        {"name":"Nextcloud","url":"fileman.cmerrill.org","icon":"weather-cloudy"},        
+        {"name":"NGINX Proxy","url":"proxy.merrills.io","icon":"arrow-decision-outline"},
+        {"name":"Pi-hole","url":"pi-hole.cmerrill.org","icon":"do-not-disturb"},
+        {"name":"Plex","url":"plex.merrills.io/web/","icon":"plex"},
+        {"name":"Portainer","url":"portainer.merrills.io","icon":"docker"},
+        {"name":"Radarr","url":"movies.example.com","icon":"filmstrip"},
+        {"name":"Sabnzbd","url":"sabnzbd.merrills.io","icon":"arrow-bottom-bold"},
+        {"name":"Sonarr","url":"sonarr.merrills.io","icon":"television-box"},        
+        {"name":"Transmission","url":"transmission.merrills.io","icon":"progress-download"},        
+        {"name":"Youtube-DL","url":"youtube-dl.cmerrill.org","icon":"youtube"}
+    ]
+}
