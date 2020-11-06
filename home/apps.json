@@ -7,7 +7,7 @@
         {"name":"Pi-hole","url":"pi-hole.cmerrill.org","icon":"do-not-disturb"},
         {"name":"Plex","url":"plex.merrills.io/web/","icon":"plex"},
         {"name":"Portainer","url":"portainer.merrills.io","icon":"docker"},
-        {"name":"Radarr","url":"movies.example.com","icon":"filmstrip"},
+        {"name":"Radarr","url":"radarr.merrills.io","icon":"filmstrip"},
         {"name":"Sabnzbd","url":"sabnzbd.merrills.io","icon":"arrow-bottom-bold"},
         {"name":"Sonarr","url":"sonarr.merrills.io","icon":"television-box"},        
         {"name":"Transmission","url":"transmission.merrills.io","icon":"progress-download"},        
