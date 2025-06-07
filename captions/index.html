@@ -1,22 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Image Captioner V2</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Bootstrap CSS & Icons -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Bootstrap & Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <style>
-    /* Layout */
-    body{min-height:100vh;display:flex;flex-direction:column;background:#f8f9fa}
-    main{flex:1}
-    /* Dropzone */
-    #dropzone{border:2px dashed #6c757d;border-radius:.5rem;padding:3rem;text-align:center;background:#fff;transition:background .2s,border-color .2s;cursor:pointer}
-    #dropzone.dragover{background:#e9f3ff;border-color:#0d6efd}
-    /* Thumb */
-    img.thumb{width:64px;height:64px;object-fit:cover;border-radius:.25rem}
-  </style>
+  <style>body{min-height:100vh;display:flex;flex-direction:column;background:#f8f9fa}main{flex:1}#dropzone{border:2px dashed #6c757d;border-radius:.5rem;padding:3rem;text-align:center;background:#fff;transition:background .2s,border-color .2s;cursor:pointer}#dropzone.dragover{background:#e9f3ff;border-color:#0d6efd}img.thumb{width:64px;height:64px;object-fit:cover;border-radius:.25rem}</style>
 </head>
 <body>
   <!-- Header -->
@@ -55,16 +46,13 @@
     <!-- Results table -->
     <div id="resultsWrapper" class="table-responsive">
       <table class="table table-striped align-middle" id="resultsTbl">
-        <thead class="table-light">
-          <tr><th style="width:3rem">#</th><th style="width:6rem">Image</th><th style="width:25%">File Name</th><th>Caption / Status</th></tr>
-        </thead>
-        <tbody></tbody>
+        <thead class="table-light"><tr><th style="width:3rem">#</th><th style="width:6rem">Image</th><th style="width:25%">File Name</th><th>Caption / Status</th></tr></thead><tbody></tbody>
       </table>
     </div>
   </main>
 
   <!-- Footer -->
-  <footer class="bg-light border-top shadow-sm px-3 py-2 text-center small text-muted mt-auto">AI‑generated captions to assist open‑source image‑model training.</footer>
+  <footer class="bg-light border-top shadow-sm px-3 py-2 text-center small text-muted mt-auto">AI‑generated captions to assist open‑source image‑model training. Concept by Chris Merrill</footer>
 
   <!-- Toast -->
   <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3">
@@ -76,14 +64,14 @@
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- App script (minified) -->
+  <!-- App script -->
   <script>
     (()=>{
       const LS_KEY='openai_key_v2',LS_PROMPT='caption_prompt_v2',DEF_PROMPT="Please caption this image in under 1024 characters. The caption must begin by identifying the type of image (e.g., 'An illustration' or 'A digital illustration'). It should clearly and concisely describe only the visual elements, using neutral and literal language. Avoid emotional, subjective, or interpretive terms. Focus on what is visibly present, with concise and direct descriptions.";
       const $=id=>document.getElementById(id);
       const keyEl=$('apiKey'),toggleKey=$('toggleKey'),clearKey=$('clearKey'),promptEl=$('prompt'),drop=$('dropzone'),fileInp=$('fileInput'),tbl=$('resultsTbl').querySelector('tbody'),gStatus=$('globalStatus');
-      const toast=new bootstrap.Toast($('#noKeyToast'),{delay:5e3});
       const promptWrap=$('promptWrapper'),tActions=$('tableActions'),rWrap=$('resultsWrapper');
+      const toast=new bootstrap.Toast($('noKeyToast'),{delay:5e3});
       let rowIdx=0,total=0,done=0;
       /* helpers */
       const saveKey=()=>localStorage.setItem(LS_KEY,keyEl.value.trim());
@@ -93,9 +81,15 @@
       const gateUI=()=>{const ok=hasKey();[drop,promptWrap,tActions,rWrap].forEach(el=>el.classList.toggle('d-none',!ok));promptEl.disabled=!ok;if(!ok){tbl.innerHTML='';rowIdx=total=done=0;setGStatus('Ready');toast.show();}else toast.hide();};
       const statusCell=label=>`<span class="spinner-border spinner-border-sm me-1"></span>${label}`;
       /* row */
-      function addRow(file){rowIdx++;const url=URL.createObjectURL(file);const tr=document.createElement('tr');tr.innerHTML=`<td>${rowIdx}</td><td><img src="${url}" alt="thumb" class="thumb"></td><td>${file.name}</td><td>${statusCell('Queued…')}</td>`;tbl.appendChild(tr);const img=tr.querySelector('img.thumb');img.onload=()=>URL.revokeObjectURL(url);return tr.cells[3];}
+      function addRow(file){rowIdx++;const url=URL.createObjectURL(file);const tr=document.createElement('tr');tr.innerHTML=`<td>${rowIdx}</td><td><img src="${url}" alt="thumb" class="thumb"></td><td>${file.name}</td><td>${statusCell('Queued…')}</td>`;tbl.appendChild(tr);tr.querySelector('img.thumb').onload=()=>URL.revokeObjectURL(url);return tr.cells[3];}
       /* caption */
-      async function captionImage(file,cell){try{cell.innerHTML=statusCell('Encoding…');const b64=await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.readAsDataURL(file);});cell.innerHTML=statusCell('Request sent…');const payload={model:'gpt-4o-mini',messages:[{role:'user',content:[{type:'text',text:promptEl.value},{type:'image_url',image_url:{url:`data:${file.type};base64,${b64}`}}]}]};cell.innerHTML=statusCell('Waiting…');const resp=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${keyEl.value.trim()}`},body:JSON.stringify(payload)});if(!resp.ok)throw new Error(`${resp.status} ${resp.statusText}`);const data=await resp.json();cell.textContent=data.choices?.[0]?.message?.content?.trim()||'—';}catch(e){cell.innerHTML=`<span class="text-danger">❌ ${e.message}</span>`;}finally{done++;setGStatus(done<total?`Processing ${done}/${total}`:'Ready',done<total);if(done>=total)promptEl.disabled=false;}}
+      async function captionImage(file,cell){try{cell.innerHTML=statusCell('Encoding…');const b64=await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.readAsDataURL(file);});cell.innerHTML=statusCell('Request sent…');const payload={model:'gpt-4o-mini',messages:[{role:'user',content:[{type:'text',text:promptEl.value},{type:'image_url',image_url:{url:`data:${file.type};base64,${b64}`}}]}]};cell.innerHTML=statusCell('Waiting…');const resp=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${keyEl.value.trim()}`},body:JSON.stringify(payload)});
+        if(!resp.ok)throw new Error(`${resp.status} ${resp.statusText}`);
+        const data=await resp.json();
+        const caption=data.choices?.[0]?.message?.content?.trim();
+        if(caption) cell.innerHTML=caption.replace(/\n/g,'<br>'); else cell.innerHTML='<span class="text-danger">❌ No caption returned</span>';
+      }catch(e){cell.innerHTML=`<span class="text-danger">❌ ${e.message}</span>`;}
+      finally{done++;setGStatus(done<total?`Processing ${done}/${total}`:'Ready',done<total);if(done>=total)promptEl.disabled=false;}}
       /* files */
       function handleFiles(files){if(!files.length)return;total+=files.length;setGStatus(`Processing ${done}/${total}`,true);promptEl.disabled=true;[...files].forEach(f=>captionImage(f,addRow(f)));}
       /* events */
@@ -109,10 +103,15 @@
       ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('dragover');}));
       drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
       ['dragenter','dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>e.preventDefault()));
-      $('#clearTable').addEventListener('click',()=>{tbl.innerHTML='';rowIdx=total=done=0;setGStatus('Ready');});
+      $('clearTable').addEventListener('click',()=>{tbl.innerHTML='';rowIdx=total=done=0;setGStatus('Ready');});
       /* init */
       keyEl.value=localStorage.getItem(LS_KEY)||'';
-      promptEl.value=localStorage.getItem(LS_PROMPT)||DEF_PROMPT;
+      let storedPrompt = localStorage.getItem(LS_PROMPT);
+      if(!storedPrompt || !storedPrompt.trim().length){
+        storedPrompt = DEF_PROMPT;
+        localStorage.setItem(LS_PROMPT, storedPrompt);
+      }
+      promptEl.value = storedPrompt;
       gateUI();
     })();
   </script>
