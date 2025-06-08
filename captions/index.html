@@ -2,118 +2,355 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Image Captioner V2</title>
+  <title>Image Captioner V2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Bootstrap & Icons -->
+
+  <!-- Bootstrap & Bootstrap-Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <style>body{min-height:100vh;display:flex;flex-direction:column;background:#f8f9fa}main{flex:1}#dropzone{border:2px dashed #6c757d;border-radius:.5rem;padding:3rem;text-align:center;background:#fff;transition:background .2s,border-color .2s;cursor:pointer}#dropzone.dragover{background:#e9f3ff;border-color:#0d6efd}img.thumb{width:64px;height:64px;object-fit:cover;border-radius:.25rem}</style>
+
+  <!-- JSZip & FileSaver -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+  <style>
+    /* ── layout for fixed header + footer ─────────────────── */
+    body   { min-height:100vh; padding-top:64px; padding-bottom:52px;
+             display:flex; flex-direction:column; background:#f8f9fa; }
+    header { position:fixed; top:0; left:0; width:100%; z-index:1030; }
+    footer { position:fixed; bottom:0; left:0; width:100%; z-index:1030; }
+    main   { flex:1 1 auto; }
+
+    /* ── drop-zone + table visuals ─────────────────────────── */
+    #dropzone          { height:200px; border:2px dashed #6c757d; border-radius:.25rem;
+                         display:flex; align-items:center; justify-content:center; cursor:pointer; }
+    #dropzone.dragover { background:#e9ecef; }
+    table img          { width:64px; height:64px; object-fit:cover; border-radius:.25rem; }
+    #globalStatus[hidden]{ display:none!important; }
+  </style>
 </head>
 <body>
-  <!-- Header -->
-  <header class="bg-light border-bottom shadow-sm px-3 py-2 d-flex justify-content-between align-items-center">
-    <span class="fw-semibold fs-5">Image Captioner V2</span>
-    <div class="d-flex align-items-center gap-2">
-      <div class="input-group input-group-sm" style="max-width:270px">
-        <span class="input-group-text"><i class="bi bi-key"></i></span>
-        <input id="apiKey" type="password" class="form-control" placeholder="OpenAI API key" autocomplete="off">
-        <button id="toggleKey" class="btn btn-outline-secondary" title="Show / hide"><i class="bi bi-eye"></i></button>
-        <button id="clearKey" class="btn btn-outline-danger" title="Clear key"><i class="bi bi-x-lg"></i></button>
+<!-- ─── Fixed header ───────────────────────────────────────── -->
+<header class="bg-light border-bottom shadow-sm px-3 py-2 d-flex justify-content-between align-items-center">
+  <span class="fw-semibold fs-5">Image Captioner V2</span>
+
+  <div class="d-flex align-items-center gap-2">
+    <button id="downloadZip" class="btn btn-sm btn-outline-success" title="Download images + captions">
+      <i class="bi bi-download"></i>
+    </button>
+    <button id="credBtn" class="btn btn-sm btn-outline-primary" title="API credentials">
+      <i class="bi bi-key"></i>
+    </button>
+    <span id="globalStatus" class="small text-muted" hidden></span>
+  </div>
+</header>
+
+<input id="fileInput" type="file" accept="image/*" multiple hidden>
+
+<!-- ─── Credentials modal ──────────────────────────────────── -->
+<div class="modal fade" id="credModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="credForm">
+      <div class="modal-header">
+        <h5 class="modal-title">API Credentials</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <span id="globalStatus" class="small text-muted">Ready</span>
-    </div>
-  </header>
 
-  <!-- Main -->
-  <main class="container my-4">
-    <!-- Prompt -->
-    <div id="promptWrapper" class="mb-3">
-      <label for="prompt" class="form-label fw-semibold">Caption prompt <span class="text-muted fst-italic small">(auto‑saved)</span></label>
-      <textarea id="prompt" class="form-control" rows="4"></textarea>
-    </div>
+      <div class="modal-body">
+        <!-- OpenAI -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">
+            OpenAI API Key
+            <a href="https://platform.openai.com/api-keys" target="_blank" class="ms-1">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+          </label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-key"></i></span>
+            <input id="openaiKey" type="password" class="form-control" placeholder="sk-…" autocomplete="off">
+            <button id="eyeOA"  class="btn btn-outline-secondary" type="button"><i class="bi bi-eye"></i></button>
+            <button id="clrOA"  class="btn btn-outline-danger"    type="button"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
 
-    <!-- Dropzone -->
-    <div id="dropzone" class="mb-4">
-      <p class="lead text-muted mb-0"><i class="bi bi-cloud-arrow-up fs-3"></i><br>Drag & drop images or click</p>
-      <input id="fileInput" type="file" accept="image/*" multiple hidden>
-    </div>
+        <!-- Cloudinary -->
+        <div class="mb-3">
+          <label class="form-label fw-semibold">
+            Cloudinary Cloud Name
+            <a href="https://console.cloudinary.com/settings/" target="_blank" class="ms-1">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+          </label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-cloud"></i></span>
+            <input id="cName" class="form-control" placeholder="your-cloud">
+            <button id="clrCN" class="btn btn-outline-danger" type="button"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
 
-    <!-- Table actions -->
-    <div id="tableActions" class="mb-3">
-      <button id="clearTable" class="btn btn-outline-secondary btn-sm"><i class="bi bi-trash"></i> Clear Table</button>
-    </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Cloudinary API Key</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-cloud"></i></span>
+            <input id="cKey" type="password" class="form-control" placeholder="123456…" autocomplete="off">
+            <button id="eyeCK" class="btn btn-outline-secondary" type="button"><i class="bi bi-eye"></i></button>
+            <button id="clrCK" class="btn btn-outline-danger"   type="button"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
 
-    <!-- Results table -->
-    <div id="resultsWrapper" class="table-responsive">
-      <table class="table table-striped align-middle" id="resultsTbl">
-        <thead class="table-light"><tr><th style="width:3rem">#</th><th style="width:6rem">Image</th><th style="width:25%">File Name</th><th>Caption / Status</th></tr></thead><tbody></tbody>
-      </table>
-    </div>
-  </main>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Cloudinary API Secret</label>
+          <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
+            <input id="cSec" type="password" class="form-control" placeholder="secret…" autocomplete="off">
+            <button id="eyeCS" class="btn btn-outline-secondary" type="button"><i class="bi bi-eye"></i></button>
+            <button id="clrCS" class="btn btn-outline-danger"   type="button"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
+      </div>
 
-  <!-- Footer -->
-  <footer class="bg-light border-top shadow-sm px-3 py-2 text-center small text-muted mt-auto">AI‑generated captions to assist open‑source image‑model training. Concept by Chris Merrill</footer>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
+        <button class="btn btn-primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
 
-  <!-- Toast -->
-  <div class="toast-container position-fixed bottom-0 start-50 translate-middle-x p-3">
-    <div id="noKeyToast" class="toast text-bg-warning border-0" role="alert" aria-live="assertive" aria-atomic="true">
-      <div class="d-flex"><div class="toast-body">Enter your OpenAI API key to enable uploading.</div><button class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>
-    </div>
+<!-- ─── Toast (missing-key) ───────────────────────────────── -->
+<div id="noKeyToast" class="toast text-bg-warning position-fixed bottom-0 end-0 m-3" role="alert">
+  <div class="d-flex">
+    <div class="toast-body">Enter your OpenAI key.</div>
+    <button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button>
+  </div>
+</div>
+
+<!-- ─── Main (scrolls between header & footer) ────────────── -->
+<main class="container my-4">
+  <!-- Prompt -->
+  <div id="promptWrap" class="mb-3">
+    <label class="form-label fw-semibold">
+      Caption Prompt
+      <span class="fst-italic text-muted small">(auto-saved)</span>
+    </label>
+    <textarea id="prompt" rows="4" class="form-control"></textarea>
   </div>
 
-  <!-- Bootstrap JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Drop-zone -->
+  <div id="dropzone" class="mb-4">
+    <p class="lead text-muted mb-0">
+      <i class="bi bi-cloud-arrow-up fs-3"></i><br>
+      Drag / drop or click
+    </p>
+  </div>
 
-  <!-- App script -->
-  <script>
-    (()=>{
-      const LS_KEY='openai_key_v2',LS_PROMPT='caption_prompt_v2',DEF_PROMPT="Please caption this image in under 1024 characters. The caption must begin by identifying the type of image (e.g., 'An illustration' or 'A digital illustration'). It should clearly and concisely describe only the visual elements, using neutral and literal language. Avoid emotional, subjective, or interpretive terms. Focus on what is visibly present, with concise and direct descriptions.";
-      const $=id=>document.getElementById(id);
-      const keyEl=$('apiKey'),toggleKey=$('toggleKey'),clearKey=$('clearKey'),promptEl=$('prompt'),drop=$('dropzone'),fileInp=$('fileInput'),tbl=$('resultsTbl').querySelector('tbody'),gStatus=$('globalStatus');
-      const promptWrap=$('promptWrapper'),tActions=$('tableActions'),rWrap=$('resultsWrapper');
-      const toast=new bootstrap.Toast($('noKeyToast'),{delay:5e3});
-      let rowIdx=0,total=0,done=0;
-      /* helpers */
-      const saveKey=()=>localStorage.setItem(LS_KEY,keyEl.value.trim());
-      const savePrompt=()=>localStorage.setItem(LS_PROMPT,promptEl.value);
-      const hasKey=()=>!!keyEl.value.trim();
-      const setGStatus=(txt,spin)=>gStatus.innerHTML=spin?`<span class="spinner-border spinner-border-sm me-1"></span>${txt}`:txt;
-      const gateUI=()=>{const ok=hasKey();[drop,promptWrap,tActions,rWrap].forEach(el=>el.classList.toggle('d-none',!ok));promptEl.disabled=!ok;if(!ok){tbl.innerHTML='';rowIdx=total=done=0;setGStatus('Ready');toast.show();}else toast.hide();};
-      const statusCell=label=>`<span class="spinner-border spinner-border-sm me-1"></span>${label}`;
-      /* row */
-      function addRow(file){rowIdx++;const url=URL.createObjectURL(file);const tr=document.createElement('tr');tr.innerHTML=`<td>${rowIdx}</td><td><img src="${url}" alt="thumb" class="thumb"></td><td>${file.name}</td><td>${statusCell('Queued…')}</td>`;tbl.appendChild(tr);tr.querySelector('img.thumb').onload=()=>URL.revokeObjectURL(url);return tr.cells[3];}
-      /* caption */
-      async function captionImage(file,cell){try{cell.innerHTML=statusCell('Encoding…');const b64=await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.readAsDataURL(file);});cell.innerHTML=statusCell('Request sent…');const payload={model:'gpt-4o-mini',messages:[{role:'user',content:[{type:'text',text:promptEl.value},{type:'image_url',image_url:{url:`data:${file.type};base64,${b64}`}}]}]};cell.innerHTML=statusCell('Waiting…');const resp=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${keyEl.value.trim()}`},body:JSON.stringify(payload)});
-        if(!resp.ok)throw new Error(`${resp.status} ${resp.statusText}`);
-        const data=await resp.json();
-        const caption=data.choices?.[0]?.message?.content?.trim();
-        if(caption) cell.innerHTML=caption.replace(/\n/g,'<br>'); else cell.innerHTML='<span class="text-danger">❌ No caption returned</span>';
-      }catch(e){cell.innerHTML=`<span class="text-danger">❌ ${e.message}</span>`;}
-      finally{done++;setGStatus(done<total?`Processing ${done}/${total}`:'Ready',done<total);if(done>=total)promptEl.disabled=false;}}
-      /* files */
-      function handleFiles(files){if(!files.length)return;total+=files.length;setGStatus(`Processing ${done}/${total}`,true);promptEl.disabled=true;[...files].forEach(f=>captionImage(f,addRow(f)));}
-      /* events */
-      keyEl.addEventListener('input',()=>{saveKey();gateUI();});
-      promptEl.addEventListener('input',savePrompt);
-      toggleKey.addEventListener('click',()=>{keyEl.type=keyEl.type==='password'?'text':'password';toggleKey.innerHTML=`<i class="bi bi-${keyEl.type==='password'?'eye':'eye-slash'}"></i>`});
-      clearKey.addEventListener('click',()=>{keyEl.value='';saveKey();gateUI();});
-      drop.addEventListener('click',()=>fileInp.click());
-      fileInp.addEventListener('change',e=>handleFiles(e.target.files));
-      ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('dragover');}));
-      ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('dragover');}));
-      drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
-      ['dragenter','dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>e.preventDefault()));
-      $('clearTable').addEventListener('click',()=>{tbl.innerHTML='';rowIdx=total=done=0;setGStatus('Ready');});
-      /* init */
-      keyEl.value=localStorage.getItem(LS_KEY)||'';
-      let storedPrompt = localStorage.getItem(LS_PROMPT);
-      if(!storedPrompt || !storedPrompt.trim().length){
-        storedPrompt = DEF_PROMPT;
-        localStorage.setItem(LS_PROMPT, storedPrompt);
+  <!-- Table actions -->
+  <div id="tableActions" class="mb-2">
+    <button id="clearTable" class="btn btn-sm btn-outline-danger">Clear</button>
+  </div>
+
+  <!-- Results table -->
+  <div id="resultsWrap">
+    <table class="table table-striped align-middle">
+      <thead>
+        <tr><th>#</th><th>File</th><th>Image</th><th>Caption</th><th>Dims</th><th>Status</th></tr>
+      </thead>
+      <tbody id="resultsTbl"></tbody>
+    </table>
+  </div>
+</main>
+
+<!-- ─── Fixed footer ──────────────────────────────────────── -->
+<footer class="bg-light border-top text-muted small py-2 text-center">
+  <span id="footerText">© 2025 • Drop images, caption with GPT-4o-mini, download anytime.</span>
+</footer>
+
+<!-- ─── Bootstrap bundle ──────────────────────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+(() => {
+  /* ── constants & helpers ─────────────────────────────── */
+  const LS = { OA:'openai_key_v2', CN:'cloud_name_v2', CK:'cloud_key_v2',
+               CS:'cloud_sec_v2',  PR:'caption_prompt_v2' };
+  const DEF_PROMPT = 'Generate a descriptive caption for this image.';
+  const $ = id => document.getElementById(id);
+  const sha1 = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-1',
+                     new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,'0')).join('');
+
+  /* dom refs */
+  const openAI=$('openaiKey'), eyeOA=$('eyeOA'),   clrOA=$('clrOA');
+  const cName=$('cName'),      clrCN=$('clrCN');
+  const cKey =$ ('cKey'),      eyeCK=$('eyeCK'),   clrCK=$('clrCK');
+  const cSec =$ ('cSec'),      eyeCS=$('eyeCS'),   clrCS=$('clrCS');
+
+  const credBtn=$('credBtn'), credModal=new bootstrap.Modal($('credModal'));
+  const toast   =new bootstrap.Toast($('noKeyToast'),{delay:5000});
+  const gStat   =$('globalStatus');
+
+  const promptEl=$('prompt'), drop=$('dropzone'), fileIn=$('fileInput'),
+        tbl=$('resultsTbl'),  dlBtn=$('downloadZip');
+
+  const hideAreas=['promptWrap','tableActions','resultsWrap'].map($);
+
+  /* state */
+  let idx=0,total=0,done=0;
+
+  /* storage helpers */
+  const saveCreds=()=>{localStorage.setItem(LS.OA,openAI.value.trim());
+                       localStorage.setItem(LS.CN,cName.value.trim());
+                       localStorage.setItem(LS.CK,cKey.value.trim());
+                       localStorage.setItem(LS.CS,cSec.value.trim());};
+  const savePrompt = () => localStorage.setItem(LS.PR,promptEl.value);
+
+  const setStatus=(t='',spin=false)=>{
+    if(!t){gStat.hidden=true;gStat.innerHTML='';return;}
+    gStat.hidden=false;
+    gStat.innerHTML = spin?`<span class="spinner-border spinner-border-sm me-1"></span>${t}`:t;
+  };
+  const gate=()=>{const ok=!!openAI.value.trim();
+    hideAreas.forEach(el=>el.style.display=ok?'':'none');
+    if(!ok) toast.show(); else setStatus();};
+
+  /* ── download ZIP ─────────────────────────────────────── */
+  async function downloadZip(){
+    const rows=[...tbl.querySelectorAll('tr')];
+    if(!rows.length){alert('No images to download.');return;}
+
+    dlBtn.disabled=true; setStatus('Building ZIP…',true);
+    const used=new Set(), zip=new JSZip(), csv=['filename,caption'];
+
+    for(const row of rows){
+      const fnameCell=row.querySelector('.fname'), capCell=row.querySelector('.cap'),
+            img=row.querySelector('img');
+      let fname=fnameCell.textContent.trim()||'image';
+
+      if(used.has(fname)){           /* ensure unique filename */
+        const parts=fname.split('.'); const ext=parts.pop(); const base=parts.join('.');
+        let i=1; while(used.has(`${base}_${i}.${ext}`)) i++; fname=`${base}_${i}.${ext}`;
       }
-      promptEl.value = storedPrompt;
-      gateUI();
-    })();
-  </script>
+      used.add(fname);
+
+      const blob=await (await fetch(img.src)).blob();
+      zip.file(fname,blob);
+      csv.push(`"${fname.replaceAll('"','""')}","${capCell.textContent.replaceAll('"','""')}"`);
+    }
+    zip.file('captions.csv',csv.join('\n'));
+    saveAs(await zip.generateAsync({type:'blob'}),'images.zip');
+    dlBtn.disabled=false; setStatus();
+  }
+
+  /* ── handle images ─────────────────────────────────────── */
+  async function handle(files){
+    if(!openAI.value.trim()){toast.show();return;}
+    const base=(promptEl.value||DEF_PROMPT).trim(), oaKey=openAI.value.trim();
+    const cname=cName.value.trim(), ckey=cKey.value.trim(), csec=cSec.value.trim();
+    const doCloud=cname&&ckey&&csec;
+
+    [...files].forEach(file=>{
+      const row=tbl.insertRow(); row.innerHTML=
+        `<td>${++idx}</td><td class="fname">${file.name}</td><td><img></td>
+         <td class="cap fst-italic text-muted">Queued…</td>
+         <td class="dims text-muted">—</td><td class="st">Queued</td>`;
+      const img=row.querySelector('img'), cap=row.querySelector('.cap'),
+            dims=row.querySelector('.dims'), st=row.querySelector('.st'); total++;
+
+      const fr=new FileReader();
+      fr.onload=async()=>{
+        img.src=fr.result; cap.textContent='Processing…'; st.textContent='OpenAI…';
+        setStatus(`Processing ${done+1}/${total}`,true);
+
+        try{
+          /* caption */
+          const res=await fetch('https://api.openai.com/v1/chat/completions',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':`Bearer ${oaKey}`},
+            body:JSON.stringify({
+              model:'gpt-4o-mini', temperature:0.2,
+              messages:[
+                {role:'system',content:'You are an expert photo-captioning assistant.'},
+                {role:'user',content:[
+                  {type:'text',text:base},
+                  {type:'image_url',image_url:{url:fr.result}}
+                ]}
+              ]
+            })
+          });
+          if(!res.ok) throw new Error(await res.text());
+          cap.textContent=(await res.json()).choices[0].message.content.trim();
+          cap.classList.remove('fst-italic','text-muted');
+
+          /* cloudinary upload */
+          if(doCloud){
+            st.textContent='Cloudinary…';
+            const ts=Math.floor(Date.now()/1e3);
+            const sig=await sha1(`timestamp=${ts}${csec}`);
+            const fd=new FormData();
+            fd.append('file',file); fd.append('api_key',ckey); fd.append('timestamp',ts); fd.append('signature',sig);
+
+            const cRes=await fetch(`https://api.cloudinary.com/v1_1/${cname}/image/upload`,{method:'POST',body:fd});
+            if(!cRes.ok) throw new Error(await cRes.text());
+            const cd=await cRes.json();
+            let url=cd.secure_url, w=cd.width, h=cd.height;
+            if(w<1024||h<1024){
+              url=url.replace('/upload/','/upload/w_1024,h_1024,c_fit/');
+              const scale=1024/Math.max(w,h); w=Math.round(w*scale); h=Math.round(h*scale);
+            }
+            img.src=url; dims.textContent=`${w}×${h}`;
+          }else{/* fallback dims */
+            const t=new Image(); t.onload=()=>dims.textContent=`${t.width}×${t.height}`; t.src=fr.result;
+          }
+
+          st.textContent='Done';
+        }catch(e){
+          console.error(e);
+          cap.textContent=e.message||'Error'; st.textContent='Error';
+        }finally{
+          done++; setStatus(done===total?'':`Processing ${done}/${total}`,true);
+          if(done===total) setTimeout(()=>setStatus(),300);
+        }
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  /* ── UI wiring ─────────────────────────────────────────── */
+  credBtn.onclick = () => credModal.show();
+  $('credForm').onsubmit = e=>{e.preventDefault();saveCreds();gate();credModal.hide();};
+
+  const flip=(inp,btn)=>btn.onclick=()=>{inp.type=inp.type==='password'?'text':'password';
+    btn.firstElementChild.className=`bi bi-${inp.type==='password'?'eye':'eye-slash'}`;};
+  flip(openAI,eyeOA); flip(cKey,eyeCK); flip(cSec,eyeCS);
+
+  const clr=inp=>{inp.value='';saveCreds();gate();};
+  clrOA.onclick=()=>clr(openAI); clrCN.onclick=()=>clr(cName);
+  clrCK.onclick=()=>clr(cKey);   clrCS.onclick=()=>clr(cSec);
+
+  [openAI,cName,cKey,cSec].forEach(i=>i.addEventListener('input',saveCreds));
+  promptEl.addEventListener('input',savePrompt);
+
+  drop.onclick   = () => fileIn.click();
+  fileIn.onchange= e => handle(e.target.files);
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{
+    e.preventDefault(); drop.classList.add('dragover');
+  }));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{
+    e.preventDefault(); drop.classList.remove('dragover');
+  }));
+  drop.addEventListener('drop',e=>handle(e.dataTransfer.files));
+  ['dragenter','dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>e.preventDefault()));
+
+  $('clearTable').onclick=()=>{tbl.innerHTML='';idx=total=done=0; setStatus();};
+  dlBtn.onclick=downloadZip;
+
+  /* init */
+  openAI.value=localStorage.getItem(LS.OA)||'';
+  cName.value =localStorage.getItem(LS.CN)||'';
+  cKey.value  =localStorage.getItem(LS.CK)||'';
+  cSec.value  =localStorage.getItem(LS.CS)||'';
+  promptEl.value=localStorage.getItem(LS.PR)?.trim()||DEF_PROMPT;
+  gate();
+})();
+</script>
 </body>
 </html>
