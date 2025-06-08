@@ -2,341 +2,415 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Image Captioner V2</title><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image Captioner v2 + Prompts PDF</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- Bootstrap + Icons -->
+  <!-- Bootstrap 5 + Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
 
-  <!-- JSZip + FileSaver -->
+  <!-- JSZip | FileSaver | jsPDF | autoTable -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.0/dist/jspdf.plugin.autotable.min.js"></script>
 
   <style>
-    body   {min-height:100vh; padding-top:64px; padding-bottom:52px; display:flex; flex-direction:column; background:#f8f9fa;}
-    header {position:fixed; top:0; left:0; width:100%; z-index:1030;}
-    footer {position:fixed; bottom:0; left:0; width:100%; z-index:1030;}
-    main   {flex:1 1 auto;}
-    #dropzone          {height:200px; border:2px dashed #6c757d; border-radius:.25rem; display:flex; align-items:center; justify-content:center; cursor:pointer;}
-    #dropzone.dragover {background:#e9ecef;}
-    table img          {width:64px; height:64px; object-fit:cover; border-radius:.25rem;}
-    #globalStatus[hidden]{display:none!important;}
+    body{min-height:100vh;padding-top:64px;padding-bottom:52px;display:flex;flex-direction:column;background:#f8f9fa}
+    header{position:fixed;top:0;left:0;width:100%;z-index:1030}
+    footer{position:fixed;bottom:0;left:0;width:100%;z-index:1030}
+    main{flex:1 1 auto}
+    #dropzone{height:200px;border:2px dashed #6c757d;border-radius:.5rem;background:#fff;
+              display:flex;align-items:center;justify-content:center;cursor:pointer}
+    #dropzone.dragover{background:#e9ecef}
+    table img{width:64px;height:64px;object-fit:cover;border-radius:.25rem}
+    #globalStatus[hidden]{display:none}
+    textarea{resize:vertical}
+    #suggestedList li{white-space:pre-wrap}
   </style>
 </head>
 <body>
-  <header class="bg-light border-bottom shadow-sm px-3 py-2 d-flex justify-content-between align-items-center">
-    <span class="fw-semibold fs-5">Image Captioner V2</span>
+  <!-- HEADER -->
+  <header class="bg-light border-bottom shadow-sm py-2 px-3 d-flex justify-content-between align-items-center">
+    <span class="fw-semibold fs-5">Image Captioner v2</span>
     <div class="d-flex align-items-center gap-2">
-      <button id="zipBtn" class="btn btn-sm btn-outline-success" title="Download ZIP">
-        <i class="bi bi-download"></i>
-      </button>
-      <button id="credBtn" class="btn btn-sm btn-outline-primary" title="API credentials">
-        <i class="bi bi-key"></i>
-      </button>
+      <button id="promptBtn" class="btn btn-sm btn-outline-warning" title="Suggest prompts"><i class="bi bi-lightbulb"></i></button>
+      <button id="zipBtn" class="btn btn-sm btn-outline-success" title="Download ZIP"><i class="bi bi-download"></i></button>
+      <button id="credBtn" class="btn btn-sm btn-outline-primary" title="API credentials"><i class="bi bi-key"></i></button>
+      <button id="clearBtn" class="btn btn-sm btn-outline-danger" title="Clear &amp; purge"><i class="bi bi-trash"></i></button>
       <span id="globalStatus" class="small text-muted" hidden></span>
     </div>
   </header>
 
+  <!-- hidden file picker -->
   <input id="fileInput" type="file" accept="image/*" multiple hidden>
 
-  <!-- Credentials Modal -->
+  <!-- MAIN -->
+  <main class="container py-3">
+    <div id="promptWrap" class="mb-3">
+      <label class="form-label fw-semibold">Prompt sent to OpenAI</label>
+      <textarea id="prompt" class="form-control" rows="2"></textarea>
+    </div>
+
+    <div id="dropzone" class="mb-3 rounded">Click or drop images here</div>
+
+    <div id="resultsWrap" class="table-responsive">
+      <table class="table table-sm table-hover align-middle">
+        <thead class="table-light sticky-top">
+          <tr><th>#</th><th>Filename</th><th>Image</th><th>Caption</th><th>Dims</th><th>Status</th></tr>
+        </thead>
+        <tbody id="resultsTbl"></tbody>
+      </table>
+    </div>
+
+    <!-- Suggested prompts -->
+    <div id="suggestedWrap" class="mt-4" style="display:none">
+      <h5>Suggested Prompts</h5>
+      <ol id="suggestedList" class="ps-3"></ol>
+    </div>
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="bg-light border-top small text-muted text-center py-2">
+    © 2025 • local processing; Cloudinary uploads only if creds set.
+  </footer>
+
+  <!-- ===== CREDENTIALS MODAL ===== -->
   <div class="modal fade" id="credModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
       <form class="modal-content" id="credForm">
-        <div class="modal-header">
-          <h5 class="modal-title">API credentials</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
+        <div class="modal-header"><h5 class="modal-title">API credentials</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-          <!-- OpenAI Key -->
+          <!-- OpenAI key -->
           <div class="mb-3">
-            <label class="form-label fw-semibold">OpenAI API Key
-              <a href="https://platform.openai.com/api-keys" target="_blank" class="ms-1">
-                <i class="bi bi-box-arrow-up-right"></i>
-              </a>
-            </label>
+            <label class="form-label fw-semibold">OpenAI API Key</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-key"></i></span>
-              <input id="openaiKey" type="password" class="form-control" placeholder="sk-..." autocomplete="off">
-              <button id="eyeOA"  class="btn btn-outline-secondary" type="button"><i class="bi bi-eye"></i></button>
-              <button id="clrOA"  class="btn btn-outline-danger" type="button"><i class="bi bi-x-lg"></i></button>
+              <input id="openaiKey" type="password" class="form-control" autocomplete="off">
+              <button id="eyeOA" class="btn btn-outline-secondary" type="button"><i class="bi bi-eye"></i></button>
+              <button id="clrOA" class="btn btn-outline-danger" type="button"><i class="bi bi-x-lg"></i></button>
             </div>
           </div>
-          <!-- Cloudinary -->
+          <!-- Cloudinary cloud name -->
           <div class="mb-3">
-            <label class="form-label fw-semibold">Cloudinary Cloud Name</label>
+            <label class="form-label fw-semibold">Cloudinary Cloud Name</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-cloud"></i></span>
-              <input id="cName" class="form-control" placeholder="your-cloud">
+              <input id="cloudName" class="form-control">
               <button id="clrCN" class="btn btn-outline-danger" type="button"><i class="bi bi-x-lg"></i></button>
             </div>
           </div>
+          <!-- Cloudinary key -->
           <div class="mb-3">
-            <label class="form-label fw-semibold">Cloudinary API Key</label>
+            <label class="form-label fw-semibold">Cloudinary API Key</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-cloud"></i></span>
-              <input id="cKey" type="password" class="form-control" placeholder="123456..." autocomplete="off">
+              <input id="cloudKey" type="password" class="form-control" autocomplete="off">
               <button id="eyeCK" class="btn btn-outline-secondary" type="button"><i class="bi bi-eye"></i></button>
               <button id="clrCK" class="btn btn-outline-danger" type="button"><i class="bi bi-x-lg"></i></button>
             </div>
           </div>
+          <!-- Cloudinary secret -->
           <div class="mb-3">
-            <label class="form-label fw-semibold">Cloudinary API Secret</label>
+            <label class="form-label fw-semibold">Cloudinary API Secret</label>
             <div class="input-group">
               <span class="input-group-text"><i class="bi bi-lock-fill"></i></span>
-              <input id="cSec" type="password" class="form-control" placeholder="secret..." autocomplete="off">
+              <input id="cloudSec" type="password" class="form-control" autocomplete="off">
               <button id="eyeCS" class="btn btn-outline-secondary" type="button"><i class="bi bi-eye"></i></button>
               <button id="clrCS" class="btn btn-outline-danger" type="button"><i class="bi bi-x-lg"></i></button>
             </div>
           </div>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Close</button>
-          <button class="btn btn-primary" type="submit">Save</button>
-        </div>
+        <div class="modal-footer"><button type="submit" class="btn btn-primary w-100">Save</button></div>
       </form>
     </div>
   </div>
 
-  <!-- Project-Name Modal (for ZIP) -->
-  <div class="modal fade" id="projModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <form class="modal-content" id="projForm">
+  <!-- ===== ZIP NAME MODAL ===== -->
+  <div class="modal fade" id="zipModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form class="modal-content" id="zipForm">
+        <div class="modal-header"><h5 class="modal-title">Project Name (for ZIP)</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body"><input id="zipName" class="form-control" required></div>
+        <div class="modal-footer"><button id="zipGo" type="submit" class="btn btn-primary w-100" disabled>Download ZIP</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== INDUSTRY + COUNT MODAL ===== -->
+  <div class="modal fade" id="industryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <form class="modal-content" id="industryForm">
         <div class="modal-header">
-          <h5 class="modal-title">Download project ZIP</h5>
+          <h5 class="modal-title">Prompt options</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <label for="projName" class="form-label fw-semibold">Project name (required)</label>
-          <input id="projName" class="form-control" required placeholder="e.g. spring_campaign">
+          <label class="form-label fw-semibold mb-1">Industry</label>
+          <input id="industryInput" class="form-control mb-3" placeholder="e.g. Insurance" required>
+          <label class="form-label fw-semibold mb-1">How many prompts?</label>
+          <select id="promptCount" class="form-select" required>
+            <option value="10">10 prompts</option>
+            <option value="15">15 prompts</option>
+            <option value="20" selected>20 prompts</option>
+            <option value="25">25 prompts</option>
+          </select>
         </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" data-bs-dismiss="modal" type="button">Cancel</button>
-          <button id="projSave" class="btn btn-success" type="submit">Download</button>
-        </div>
+        <div class="modal-footer"><button type="submit" class="btn btn-primary w-100">Generate</button></div>
       </form>
     </div>
   </div>
 
-  <!-- Toast for missing key -->
-  <div id="noKeyToast" class="toast text-bg-warning position-fixed bottom-0 end-0 m-3" role="alert">
+  <!-- ===== TOASTS ===== -->
+  <div id="warnToast" class="toast text-bg-warning position-fixed bottom-0 end-0 m-3" role="alert">
     <div class="d-flex">
-      <div class="toast-body">Enter your OpenAI key.</div>
+      <div id="warnBody" class="toast-body">Enter your OpenAI key.</div>
+      <button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+  <div id="okToast" class="toast text-bg-success position-fixed bottom-0 end-0 m-3" role="alert">
+    <div class="d-flex">
+      <div id="okBody" class="toast-body">Done!</div>
       <button class="btn-close btn-close-white m-auto me-2" data-bs-dismiss="toast"></button>
     </div>
   </div>
 
-  <main class="container my-4">
-    <div id="promptWrap" class="mb-3">
-      <label class="form-label fw-semibold">Caption Prompt
-        <span class="fst-italic small text-muted">(auto-saved)</span>
-      </label>
-      <textarea id="prompt" rows="4" class="form-control"></textarea>
-    </div>
-
-    <div id="dropzone" class="mb-4">
-      <p class="lead text-muted mb-0">
-        <i class="bi bi-cloud-arrow-up fs-3"></i><br>Drag / drop or click
-      </p>
-    </div>
-
-    <div id="tableActions" class="mb-2">
-      <button id="clearTable" class="btn btn-sm btn-outline-danger">Clear</button>
-    </div>
-
-    <div id="resultsWrap">
-      <table class="table table-striped align-middle">
-        <thead>
-          <tr><th>#</th><th>File</th><th>Image</th><th>Caption</th><th>Dims</th><th>Status</th></tr>
-        </thead>
-        <tbody id="resultsTbl"></tbody>
-      </table>
-    </div>
-  </main>
-
-  <footer class="bg-light border-top small text-muted text-center py-2">
-    © 2025 • Local captioning – nothing leaves your browser except Cloudinary uploads if enabled.
-  </footer>
-
+  <!-- Bootstrap bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- MAIN SCRIPT -->
   <script>
-  (() => {
+  (()=>{
+
+    /* ===== CONSTANTS & SHORTCUTS ===== */
     const LS={OA:'openai_key_v2',CN:'cloud_name_v2',CK:'cloud_key_v2',CS:'cloud_sec_v2',PR:'caption_prompt_v2'};
-    const DEF='Generate a descriptive caption for this image.';
+    const DEF_PROMPT='Generate a descriptive caption for this image.';
     const $=id=>document.getElementById(id);
     const sha1=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-1',new TextEncoder().encode(s)))]
-                     .map(b=>b.toString(16).padStart(2,'0')).join('');
+                         .map(b=>b.toString(16).padStart(2,'0')).join('');
 
-    const openAI=$("openaiKey"),eyeOA=$("eyeOA"),clrOA=$("clrOA");
-    const cName=$("cName"),clrCN=$("clrCN");
-    const cKey=$("cKey"),eyeCK=$("eyeCK"),clrCK=$("clrCK");
-    const cSec=$("cSec"),eyeCS=$("eyeCS"),clrCS=$("clrCS");
-    const credBtn=$("credBtn"),credModal=new bootstrap.Modal($("credModal"));
-    const projModal=new bootstrap.Modal($("projModal")), projName=$("projName"), projSave=$("projSave");
-    const toast=new bootstrap.Toast($("noKeyToast"),{delay:5000});
-    const gStat=$("globalStatus");
-    const promptEl=$("prompt"),drop=$("dropzone"),fileIn=$("fileInput"),tbl=$("resultsTbl"),zipBtn=$("zipBtn");
-    const hideAreas=['promptWrap','tableActions','resultsWrap'].map($);
+    /* ===== ELEMENTS ===== */
+    const openAI=$('openaiKey'),cName=$('cloudName'),cKey=$('cloudKey'),cSec=$('cloudSec');
+    const prompt=$('prompt'),drop=$('dropzone'),fileIn=$('fileInput'),tbl=$('resultsTbl');
+    const zipBtn=$('zipBtn'),clearBtn=$('clearBtn'),gStat=$('globalStatus'),promptBtn=$('promptBtn');
+    const warnToast=new bootstrap.Toast($('warnToast'),{delay:5000});
+    const okToast  =new bootstrap.Toast($('okToast'),  {delay:4000});
+    const warn=m=>{$('warnBody').textContent=m;warnToast.show();};
+    const okay=m=>{$('okBody').textContent=m;okToast.show();};
 
-    let idx=0,total=0,done=0;
+    /* ===== RESTORE SAVED VALUES ===== */
+    openAI.value=localStorage.getItem(LS.OA)||'';
+    cName.value =localStorage.getItem(LS.CN)||'';
+    cKey.value  =localStorage.getItem(LS.CK)||'';
+    cSec.value  =localStorage.getItem(LS.CS)||'';
+    prompt.value=localStorage.getItem(LS.PR)||DEF_PROMPT;
     const saveCreds=()=>{localStorage.setItem(LS.OA,openAI.value.trim());
                          localStorage.setItem(LS.CN,cName.value.trim());
                          localStorage.setItem(LS.CK,cKey.value.trim());
                          localStorage.setItem(LS.CS,cSec.value.trim());};
-    const savePrompt=()=>localStorage.setItem(LS.PR,promptEl.value);
+    const savePrompt=()=>localStorage.setItem(LS.PR,(prompt.value||DEF_PROMPT).trim());
 
+    /* ===== UI GATE ===== */
+    const gated=[$('promptWrap'),$('resultsWrap')];
+    const gate=()=>{const ok=!!openAI.value.trim();gated.forEach(el=>el.style.display=ok?'':'none');if(!ok)warn('Enter your OpenAI key.');}; gate();
+
+    /* ===== STATUS BADGE ===== */
     const setStatus=(txt='',spin=false)=>{
       if(!txt){gStat.hidden=true;gStat.innerHTML='';return;}
-      gStat.hidden=false;
-      gStat.innerHTML=spin
-        ? `<span class="spinner-border spinner-border-sm me-1"></span>${txt}`
-        : txt;
-    };
-    const gate=()=>{const ok=!!openAI.value.trim();
-      hideAreas.forEach(el=>el.style.display=ok?'':'' );
-      ok?setStatus():toast.show();
+      gStat.hidden=false;gStat.innerHTML=spin?`<span class="spinner-border spinner-border-sm me-1"></span>${txt}`:txt;
     };
 
-    async function buildZip(name){
-      const rows=[...tbl.querySelectorAll('tr')];
-      if(!rows.length){alert('No images yet.');return;}
-      zipBtn.disabled=true; setStatus('Building ZIP…',true);
-      const used=new Set(), zip=new JSZip(), csv=['filename,caption'];
-      for(const r of rows){
-        const fnameCell=r.querySelector('.fname'),
-              cap=r.querySelector('.cap').textContent,
-              img=r.querySelector('img');
-        let fname=fnameCell.textContent.trim()||'image.png';
-        if(used.has(fname)){
-          let base=fname, ext='',p=fname.lastIndexOf('.');
-          if(p>0){ base=fname.slice(0,p); ext=fname.slice(p);} 
-          let n=1; while(used.has(`${base}_${n}${ext}`)) n++; fname=`${base}_${n}${ext}`;
-        }
-        used.add(fname);
-        const blob=await (await fetch(img.src)).blob();
-        zip.file(fname,blob);
-        csv.push(`"${fname.replaceAll('"','""')}","${cap.replaceAll('"','""')}"`);
-      }
-      zip.file('captions.csv',csv.join('\n'));
-      saveAs(await zip.generateAsync({type:'blob'}),`${name}.zip`);
-      zipBtn.disabled=false; setStatus();
-    }
+    /* ===== EYE & CLEAR HANDLERS ===== */
+    const makeEye=(inp,btn)=>btn.onclick=()=>{inp.type=inp.type==='password'?'text':'password';
+                                             btn.firstElementChild.className=`bi bi-${inp.type==='password'?'eye':'eye-slash'}`;};
+    makeEye(openAI,$('eyeOA'));makeEye(cKey,$('eyeCK'));makeEye(cSec,$('eyeCS'));
+    const clearF=i=>{i.value='';saveCreds();gate();};
+    $('clrOA').onclick=()=>clearF(openAI);
+    $('clrCN').onclick=()=>clearF(cName);
+    $('clrCK').onclick=()=>clearF(cKey);
+    $('clrCS').onclick=()=>clearF(cSec);
 
-    async function handle(files){
-      zipBtn.disabled=true;  // disable download while processing
-      if(!openAI.value.trim()){ toast.show(); return; }
-      const prompt=(promptEl.value||DEF).trim(),
-            oaKey=openAI.value.trim();
-      const cname=cName.value.trim(), ckey=cKey.value.trim(), csec=cSec.value.trim();
-      const doCloud=cname&&ckey&&csec;
+    /* ===== MODALS ===== */
+    const credModal=new bootstrap.Modal($('credModal'));
+    const zipModal=new bootstrap.Modal($('zipModal'));
+    const industryModal=new bootstrap.Modal($('industryModal'));
+    $('credBtn').onclick=()=>credModal.show();
+    $('credForm').onsubmit=e=>{e.preventDefault();saveCreds();gate();credModal.hide();};
+    $('zipName').oninput=e=>$('zipGo').disabled=!e.target.value.trim();
+    $('zipForm').onsubmit=e=>{e.preventDefault();zipModal.hide();buildZip($('zipName').value.trim()||'captions');};
+    zipBtn.onclick=()=>{$('zipName').value='';$('zipGo').disabled=true;zipModal.show();};
 
-      [...files].forEach(file=>{
+    /* ===== DRAG & DROP ===== */
+    drop.onclick=()=>fileIn.click();
+    fileIn.onchange=e=>handleFiles(e.target.files);
+    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('dragover');}));
+    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('dragover');}));
+    ['dragenter','dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>e.preventDefault()));
+    drop.addEventListener('drop',e=>handleFiles(e.dataTransfer.files));
+    prompt.addEventListener('input',savePrompt);
+
+    /* ===== CAPTIONING ===== */
+    let idx=0,total=0,done=0;
+    async function handleFiles(list){
+      if(!openAI.value.trim()){warn('Enter your OpenAI key.');return;}
+      const oa=openAI.value.trim(),userPrompt=(prompt.value||DEF_PROMPT).trim(),
+            cname=cName.value.trim(),ckey=cKey.value.trim(),csec=cSec.value.trim(),
+            useCloud=cname&&ckey&&csec;
+      zipBtn.disabled=true;
+
+      [...list].forEach(file=>{
         const row=tbl.insertRow();
-        row.innerHTML=`
-          <td>${++idx}</td>
-          <td class="fname">${file.name}</td>
-          <td><img></td>
-          <td class="cap fst-italic text-muted">Queued…</td>
-          <td class="dims text-muted">—</td>
-          <td class="st">Queued</td>`;
-        const img=row.querySelector('img'), cap=row.querySelector('.cap'), dims=row.querySelector('.dims'), st=row.querySelector('.st');
+        row.innerHTML=`<td>${++idx}</td><td class="fname">${file.name}</td>
+                       <td><img></td><td class="cap fst-italic text-muted">Queued…</td>
+                       <td class="dims text-muted">—</td><td class="st">Queued</td>`;
+        const img=row.querySelector('img'),cap=row.querySelector('.cap'),
+              dims=row.querySelector('.dims'),st=row.querySelector('.st');
         total++;
         const fr=new FileReader();
         fr.onload=async ()=>{
-          img.src=fr.result; cap.textContent='Processing…'; st.textContent='OpenAI…';
+          img.src=fr.result;cap.textContent='Processing…';st.textContent='OpenAI…';
           setStatus(`Processing ${done+1}/${total}`,true);
-          try {
-            const res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',
-              headers:{'Content-Type':'application/json','Authorization':`Bearer ${oaKey}`},
+          try{
+            const resp=await fetch('https://api.openai.com/v1/chat/completions',{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':`Bearer ${oa}`},
               body:JSON.stringify({
-                model:'gpt-4o-mini',
-                temperature:0.2,
+                model:'gpt-4o-mini',temperature:0.2,
                 messages:[
-                  {role:'system',content:'You are an expert photo-captioning assistant.'},
+                  {role:'system',content:'You are an expert photo captioning assistant.'},
                   {role:'user',content:[
-                    {type:'text',text:prompt},
+                    {type:'text',text:userPrompt},
                     {type:'image_url',image_url:{url:fr.result}}
                   ]}
                 ]
               })
             });
-            if(!res.ok) throw new Error(await res.text());
-            cap.textContent=(await res.json()).choices[0].message.content.trim();
+            if(!resp.ok)throw new Error(await resp.text());
+            cap.textContent=(await resp.json()).choices[0].message.content.trim();
             cap.classList.remove('fst-italic','text-muted');
 
-            if(doCloud){
+            if(useCloud){
               st.textContent='Cloudinary…';
-              const ts=Math.floor(Date.now()/1e3),
-                    sig=await sha1(`timestamp=${ts}${csec}`);
-              const fd=new FormData();
-              fd.append('file',file);
-              fd.append('api_key',ckey);
-              fd.append('timestamp',ts);
-              fd.append('signature',sig);
-              const cRes=await fetch(`https://api.cloudinary.com/v1_1/${cname}/image/upload`,{method:'POST',body:fd});
-              if(!cRes.ok) throw new Error(await cRes.text());
-              const cd=await cRes.json();
-              let url=cd.secure_url, w=cd.width, h=cd.height;
-
-              // if either dimension <1024, crop then pad to a 1024×1024 white canvas
-              if (w < 1024 || h < 1024) {
-                url = `https://res.cloudinary.com/${cname}/image/upload/c_fill_pad,g_auto,w_1024,h_1024,b_white/v${cd.version}/${cd.public_id}.${cd.format}`;
-                w = 1024; h = 1024;
-              }
-
-              img.src = url;
-              dims.textContent = `${w}×${h}`;
-            } else {
-              const t=new Image(); t.onload=()=>dims.textContent=`${t.width}×${t.height}`; t.src=fr.result;
+              const ts=Math.floor(Date.now()/1e3),sig=await sha1(`timestamp=${ts}${csec}`),fd=new FormData();
+              fd.append('api_key',ckey);fd.append('timestamp',ts);fd.append('signature',sig);fd.append('file',fr.result);
+              const up=await fetch(`https://api.cloudinary.com/v1_1/${cname}/image/upload`,{method:'POST',body:fd});
+              if(!up.ok)throw new Error(await up.text());
+              const cd=await up.json();
+              row.dataset.cid=cd.public_id;
+              img.src=cd.secure_url;dims.textContent=`${cd.width}×${cd.height}`;
+            }else{
+              const tmp=new Image();tmp.onload=()=>dims.textContent=`${tmp.width}×${tmp.height}`;tmp.src=fr.result;
             }
-
             st.textContent='Done';
-          } catch(e) {
-            console.error(e);
-            cap.textContent = e.message || 'Error';
-            st.textContent = 'Error';
-          } finally {
-            done++;
-            if(done === total) { zipBtn.disabled = false; }
-            setStatus(done===total?'':`Processing ${done}/${total}`,true);
-            if(done===total) setTimeout(()=>setStatus(),400);
-          }
+          }catch(e){console.error(e);cap.textContent=e.message||'Error';st.textContent='Error';}
+          finally{done++;if(done===total)zipBtn.disabled=false;
+                   setStatus(done===total?'':`Processing ${done}/${total}`,true);
+                   if(done===total)setTimeout(()=>setStatus(),400);}
         };
         fr.readAsDataURL(file);
       });
     }
 
-    /* UI events */
-    credBtn.onclick=()=>credModal.show();
-    document.getElementById('credForm').onsubmit=e=>{e.preventDefault(); saveCreds(); gate(); credModal.hide();};
-    const flip=(i,b)=>b.onclick=()=>{i.type=i.type==='password'?'text':'password'; b.firstChild.className=`bi bi-${i.type==='password'?'eye':'eye-slash'}`;};
-    flip(openAI,eyeOA); flip(cKey,eyeCK); flip(cSec,eyeCS);
-    const clearField=i=>{i.value=''; saveCreds(); gate();};
-    clrOA.onclick=()=>clearField(openAI);
-    clrCN.onclick=()=>clearField(cName);
-    clrCK.onclick=()=>clearField(cKey);
-    clrCS.onclick=()=>clearField(cSec);
-    [openAI,cName,cKey,cSec].forEach(i=>i.addEventListener('input',saveCreds));
-    promptEl.addEventListener('input',savePrompt);
-    drop.onclick=()=>fileIn.click();
-    fileIn.onchange=e=>handle(e.target.files);
-    ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('dragover');}));
-    ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('dragover');}));
-    drop.addEventListener('drop',e=>handle(e.dataTransfer.files));
-    ['dragenter','dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>e.preventDefault()));
-    document.getElementById('clearTable').onclick=()=>{tbl.innerHTML=''; idx=total=done=0; setStatus(); zipBtn.disabled=true;};
+    /* ===== CLEAR & PURGE ===== */
+    clearBtn.onclick=async()=>{
+      const rows=[...tbl.rows];if(!rows.length)return okay('Nothing to clear');
+      const cname=cName.value.trim(),ckey=cKey.value.trim(),csec=cSec.value.trim();const purge=cname&&ckey&&csec;
+      if(purge){
+        await Promise.all(rows.map(async r=>{
+          const pid=r.dataset.cid;if(!pid)return;
+          const ts=Math.floor(Date.now()/1e3),sig=await sha1(`public_id=${pid}&timestamp=${ts}${csec}`),fd=new FormData();
+          fd.append('public_id',pid);fd.append('timestamp',ts);fd.append('api_key',ckey);fd.append('signature',sig);
+          try{await fetch(`https://api.cloudinary.com/v1_1/${cname}/image/destroy`,{method:'POST',body:fd});}catch(e){console.warn('purge',e);}
+        }));
+      }
+      tbl.innerHTML='';idx=total=done=0;zipBtn.disabled=true;setStatus();
+      suggestedPrompts.length=0;$('suggestedWrap').style.display='none';
+      okay(purge?'Cleared & Cloudinary purged':'Table cleared');
+    };
 
-    zipBtn.onclick=()=>{projName.value=''; projSave.disabled=true; projModal.show();};
-    projName.oninput=()=>projSave.disabled=!projName.value.trim();
-    document.getElementById('projForm').onsubmit=e=>{e.preventDefault(); projModal.hide(); buildZip(projName.value.trim());};
+    /* ===== SUGGEST PROMPTS ===== */
+    const suggestedPrompts=[];const promptList=$('suggestedList');
+    promptBtn.onclick=()=>{$('industryInput').value='';$('promptCount').value='20';industryModal.show();};
+    $('industryForm').onsubmit=e=>{e.preventDefault();industryModal.hide();
+                                   runSuggestion($('industryInput').value.trim(),parseInt($('promptCount').value,10));};
 
-    /* init */
-    openAI.value = localStorage.getItem(LS.OA) || '';
-    cName.value  = localStorage.getItem(LS.CN) || '';
-    cKey.value   = localStorage.getItem(LS.CK) || '';
-    cSec.value   = localStorage.getItem(LS.CS) || '';
-    promptEl.value = localStorage.getItem(LS.PR)?.trim() || DEF;
-    gate();
+    async function runSuggestion(industry,count){
+      if(!openAI.value.trim())return warn('Enter your OpenAI key.');
+      const rows=[...tbl.rows];if(!rows.length)return warn('Add images first.');
+      setStatus('Preparing summary…',true);
+      const summary=rows.map((r,i)=>`${i+1}. ${r.querySelector('.fname').textContent.trim()} — ${r.querySelector('.cap').textContent.trim()}`).join('\n');
+      try{
+        setStatus('Asking OpenAI for prompts…',true);
+        const res=await fetch('https://api.openai.com/v1/chat/completions',{
+          method:'POST',
+          headers:{'Content-Type':'application/json','Authorization':`Bearer ${openAI.value.trim()}`},
+          body:JSON.stringify({
+            model:'gpt-4o-mini',temperature:0.7,max_tokens:600,
+            messages:[
+              {role:'system',content:'You generate creative prompts for AI image generation.'},
+              {role:'user',content:`Here are the images with captions:\n${summary}\n\nPlease give exactly ${count} concise prompts—one per line—matching the style and subject matter for a company in the ${industry} industry.`}
+            ]
+          })
+        });
+        if(!res.ok)throw new Error(await res.text());
+        const raw=(await res.json()).choices[0].message.content.trim();
+        suggestedPrompts.length=0;
+        raw.split(/\n+/).forEach(l=>{
+          let s=l.replace(/^\d+[\.\)]\s*/,'').replace(/\*\*/g,'').trim();
+          if(s && !s.toLowerCase().startsWith('here are')) suggestedPrompts.push(s);
+        });
+        suggestedPrompts.splice(count);
+        renderSuggested();okay('Prompts added');
+      }catch(e){console.error(e);warn('OpenAI error');}
+      finally{setStatus();}
+    }
+
+    function renderSuggested(){
+      promptList.innerHTML='';suggestedPrompts.forEach(p=>{const li=document.createElement('li');li.textContent=p;promptList.appendChild(li);});
+      $('suggestedWrap').style.display='block';
+    }
+
+    /* ===== ZIP BUILD ===== */
+    async function buildZip(name){
+      const rows=[...tbl.rows];if(!rows.length)return warn('Nothing to download.');
+      zipBtn.disabled=true;setStatus('Building ZIP…',true);
+      const zip=new JSZip(),csv=['filename,caption'],used=new Set(),{jsPDF}=window.jspdf;
+      const tablePDF=new jsPDF('p','pt','letter');
+      /* prompts.pdf */
+      if(suggestedPrompts.length){
+        const pPDF=new jsPDF('p','pt','letter');
+        pPDF.setFontSize(12);pPDF.text('Suggested Prompts',40,40);pPDF.setFontSize(10);
+        let y=65,lineH=14,maxY=pPDF.internal.pageSize.getHeight()-40;
+        suggestedPrompts.forEach((p,i)=>{
+          if(y>maxY){pPDF.addPage();y=40;}
+          pPDF.text(`${i+1}. ${p}`,40,y,{maxWidth:520});y+=lineH;
+        });
+        zip.file('prompts.pdf',pPDF.output('blob'));
+      }
+      /* table.pdf first page */
+      tablePDF.text(`${name} – Caption Table`,40,40);
+      tablePDF.autoTable({head:[['#','File','Caption']],body:rows.map((r,i)=>[i+1,r.querySelector('.fname').textContent.trim(),r.querySelector('.cap').textContent.trim()]),startY:60,styles:{fontSize:8,cellWidth:'wrap'},columnStyles:{2:{cellWidth:340}}});
+      const toData=async src=>await (await fetch(src,{mode:'cors'})).blob().then(b=>new Promise(rs=>{const fr=new FileReader();fr.onload=()=>rs(fr.result);fr.readAsDataURL(b);}));
+      for(const [i,r] of rows.entries()){
+        const fnameCell=r.querySelector('.fname'),capTxt=r.querySelector('.cap').textContent,imgSrc=r.querySelector('img').src;
+        let fname=fnameCell.textContent.trim()||`image_${i+1}.png`;
+        if(used.has(fname)){let b=fname,e='',p=fname.lastIndexOf('.');if(p>0){b=fname.slice(0,p);e=fname.slice(p);}let n=1;while(used.has(`${b}_${n}${e}`))n++;fname=`${b}_${n}${e}`;}used.add(fname);
+        zip.file(fname,await (await fetch(imgSrc,{mode:'cors'})).blob());
+        csv.push(`"${fname.replaceAll('"','""')}","${capTxt.replaceAll('"','""')}"`);
+        tablePDF.addPage();
+        const dURL=await toData(imgSrc),pw=tablePDF.internal.pageSize.getWidth()-80,ph=tablePDF.internal.pageSize.getHeight()-120;
+        tablePDF.text(`(${i+1}) ${fname}`,40,40);
+        tablePDF.text(capTxt,40,60,{maxWidth:pw});
+        tablePDF.addImage(dURL,'JPEG',40,90,pw,ph-50,null,'FAST');
+      }
+      zip.file('captions.csv',csv.join('\n'));
+      zip.file('table.pdf',tablePDF.output('blob'));
+      saveAs(await zip.generateAsync({type:'blob'}),`${name}.zip`);
+      zipBtn.disabled=false;setStatus();okay('ZIP downloaded');
+    }
+
   })();
   </script>
 </body>
