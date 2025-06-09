@@ -403,42 +403,60 @@
 
     /* ===== ZIP BUILD ===== */
     async function buildZip(name){
-      const rows=[...tbl.rows];if(!rows.length)return warn('Nothing to download.');
-      zipBtn.disabled=true;setStatus('Building ZIP…',true);
-      const zip=new JSZip(),csv=['filename,caption'],used=new Set(),{jsPDF}=window.jspdf;
-      const tablePDF=new jsPDF('p','pt','letter');
-      /* prompts.pdf */
-      if(suggestedPrompts.length){
-        const pPDF=new jsPDF('p','pt','letter');
-        pPDF.setFontSize(12);pPDF.text('Suggested Prompts',40,40);pPDF.setFontSize(10);
-        let y=65,lineH=14,maxY=pPDF.internal.pageSize.getHeight()-40;
-        suggestedPrompts.forEach((p,i)=>{
-          if(y>maxY){pPDF.addPage();y=40;}
-          pPDF.text(`${i+1}. ${p}`,40,y,{maxWidth:520});y+=lineH;
-        });
-        zip.file('prompts.pdf',pPDF.output('blob'));
-      }
-      /* table.pdf first page */
-      tablePDF.text(`${name} – Caption Table`,40,40);
-      tablePDF.autoTable({head:[['#','File','Caption']],body:rows.map((r,i)=>[i+1,r.querySelector('.fname').textContent.trim(),r.querySelector('.cap').textContent.trim()]),startY:60,styles:{fontSize:8,cellWidth:'wrap'},columnStyles:{2:{cellWidth:340}}});
-      const toData=async src=>await (await fetch(src,{mode:'cors'})).blob().then(b=>new Promise(rs=>{const fr=new FileReader();fr.onload=()=>rs(fr.result);fr.readAsDataURL(b);}));
-      for(const [i,r] of rows.entries()){
-        const fnameCell=r.querySelector('.fname'),capTxt=r.querySelector('.cap').textContent,imgSrc=r.querySelector('img').src;
-        let fname=fnameCell.textContent.trim()||`image_${i+1}.png`;
-        if(used.has(fname)){let b=fname,e='',p=fname.lastIndexOf('.');if(p>0){b=fname.slice(0,p);e=fname.slice(p);}let n=1;while(used.has(`${b}_${n}${e}`))n++;fname=`${b}_${n}${e}`;}used.add(fname);
-        zip.file(fname,await (await fetch(imgSrc,{mode:'cors'})).blob());
-        csv.push(`"${fname.replaceAll('"','""')}","${capTxt.replaceAll('"','""')}"`);
-        tablePDF.addPage();
-        const dURL=await toData(imgSrc),pw=tablePDF.internal.pageSize.getWidth()-80,ph=tablePDF.internal.pageSize.getHeight()-120;
-        tablePDF.text(`(${i+1}) ${fname}`,40,40);
-        tablePDF.text(capTxt,40,60,{maxWidth:pw});
-        tablePDF.addImage(dURL,'JPEG',40,90,pw,ph-50,null,'FAST');
-      }
-      zip.file('captions.csv',csv.join('\n'));
-      zip.file('table.pdf',tablePDF.output('blob'));
-      saveAs(await zip.generateAsync({type:'blob'}),`${name}.zip`);
-      zipBtn.disabled=false;setStatus();okay('ZIP downloaded');
-    }
+  const rows=[...tbl.rows];if(!rows.length)return warn('Nothing to download.');
+  zipBtn.disabled=true;setStatus('Building ZIP…',true);
+  const zip=new JSZip(),csv=['filename,caption'],used=new Set(),{jsPDF}=window.jspdf;
+  const tablePDF=new jsPDF('p','pt','letter');
+  /* prompts.pdf + prompts.txt */
+  if(suggestedPrompts.length){
+    // PDF version
+    const pPDF=new jsPDF('p','pt','letter');
+    pPDF.setFontSize(18);
+    pPDF.text('AI Image Generation Prompts',40,54);
+    pPDF.setFontSize(12);
+    let y=90, lineH=18, maxY=pPDF.internal.pageSize.getHeight()-40;
+    suggestedPrompts.forEach((p,i)=>{
+      // wrap if too long
+      let lines = pPDF.splitTextToSize(`${i+1}. ${p}`, 520);
+      if(y+lineH*lines.length>maxY){pPDF.addPage();y=54;}
+      lines.forEach(line => {
+        pPDF.text(line,40,y);
+        y+=lineH;
+      });
+    });
+    zip.file('prompts.pdf',pPDF.output('blob'));
+
+    // TXT version
+    zip.file('prompts.txt', suggestedPrompts.map((p,i)=>`${i+1}. ${p}`).join('\n'));
+  }
+  /* table.pdf first page */
+  tablePDF.text(`${name} – Caption Table`,40,40);
+  tablePDF.autoTable({
+    head:[['#','File','Caption']],
+    body:rows.map((r,i)=>[i+1,r.querySelector('.fname').textContent.trim(),r.querySelector('.cap').textContent.trim()]),
+    startY:60,
+    styles:{fontSize:8,cellWidth:'wrap'},
+    columnStyles:{2:{cellWidth:340}}
+  });
+  const toData=async src=>await (await fetch(src,{mode:'cors'})).blob().then(b=>new Promise(rs=>{const fr=new FileReader();fr.onload=()=>rs(fr.result);fr.readAsDataURL(b);}));
+  for(const [i,r] of rows.entries()){
+    const fnameCell=r.querySelector('.fname'),capTxt=r.querySelector('.cap').textContent,imgSrc=r.querySelector('img').src;
+    let fname=fnameCell.textContent.trim()||`image_${i+1}.png`;
+    if(used.has(fname)){let b=fname,e='',p=fname.lastIndexOf('.');if(p>0){b=fname.slice(0,p);e=fname.slice(p);}let n=1;while(used.has(`${b}_${n}${e}`))n++;fname=`${b}_${n}${e}`;}used.add(fname);
+    zip.file(fname,await (await fetch(imgSrc,{mode:'cors'})).blob());
+    csv.push(`"${fname.replaceAll('"','""')}","${capTxt.replaceAll('"','""')}"`);
+    tablePDF.addPage();
+    const dURL=await toData(imgSrc),pw=tablePDF.internal.pageSize.getWidth()-80,ph=tablePDF.internal.pageSize.getHeight()-120;
+    tablePDF.text(`(${i+1}) ${fname}`,40,40);
+    tablePDF.text(capTxt,40,60,{maxWidth:pw});
+    tablePDF.addImage(dURL,'JPEG',40,90,pw,ph-50,null,'FAST');
+  }
+  zip.file('captions.csv',csv.join('\n'));
+  zip.file('table.pdf',tablePDF.output('blob'));
+  saveAs(await zip.generateAsync({type:'blob'}),`${name}.zip`);
+  zipBtn.disabled=false;setStatus();okay('ZIP downloaded');
+}
+
 
   })();
   </script>
