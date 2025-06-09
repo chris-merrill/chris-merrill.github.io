@@ -20,8 +20,7 @@
     header{position:fixed;top:0;left:0;width:100%;z-index:1030}
     footer{position:fixed;bottom:0;left:0;width:100%;z-index:1030}
     main{flex:1 1 auto}
-    #dropzone{height:200px;border:2px dashed #6c757d;border-radius:.5rem;background:#fff;
-              display:flex;align-items:center;justify-content:center;cursor:pointer}
+    #dropzone{height:200px;border:2px dashed #6c757d;border-radius:.5rem;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
     #dropzone.dragover{background:#e9ecef}
     table img{width:64px;height:64px;object-fit:cover;border-radius:.25rem}
     #globalStatus[hidden]{display:none}
@@ -186,7 +185,11 @@
 
     /* ===== CONSTANTS & SHORTCUTS ===== */
     const LS={OA:'openai_key_v2',CN:'cloud_name_v2',CK:'cloud_key_v2',CS:'cloud_sec_v2',PR:'caption_prompt_v2'};
-    const DEF_PROMPT='Generate a descriptive caption for this image.';
+    const DEF_PROMPT=[
+      'You are an expert captioning assistant for technical and business illustrations.',
+      'First identify the visual style—e.g. “black line art on white” or “flat color vector illustration.”',
+      'Then, in 12–15 words, describe the main subject and one key feature.'
+    ].join(' ');
     const $=id=>document.getElementById(id);
     const sha1=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-1',new TextEncoder().encode(s)))]
                          .map(b=>b.toString(16).padStart(2,'0')).join('');
@@ -195,6 +198,7 @@
     const openAI=$('openaiKey'),cName=$('cloudName'),cKey=$('cloudKey'),cSec=$('cloudSec');
     const prompt=$('prompt'),drop=$('dropzone'),fileIn=$('fileInput'),tbl=$('resultsTbl');
     const zipBtn=$('zipBtn'),clearBtn=$('clearBtn'),gStat=$('globalStatus'),promptBtn=$('promptBtn');
+    const industryForm=$('industryForm'),industryModal=new bootstrap.Modal($('industryModal'));
     const warnToast=new bootstrap.Toast($('warnToast'),{delay:5000});
     const okToast  =new bootstrap.Toast($('okToast'),  {delay:4000});
     const warn=m=>{$('warnBody').textContent=m;warnToast.show();};
@@ -232,10 +236,9 @@
     $('clrCK').onclick=()=>clearF(cKey);
     $('clrCS').onclick=()=>clearF(cSec);
 
-    /* ===== MODALS ===== */
+    /* ===== OTHER MODALS ===== */
     const credModal=new bootstrap.Modal($('credModal'));
     const zipModal=new bootstrap.Modal($('zipModal'));
-    const industryModal=new bootstrap.Modal($('industryModal'));
     $('credBtn').onclick=()=>credModal.show();
     $('credForm').onsubmit=e=>{e.preventDefault();saveCreds();gate();credModal.hide();};
     $('zipName').oninput=e=>$('zipGo').disabled=!e.target.value.trim();
@@ -255,7 +258,8 @@
     let idx=0,total=0,done=0;
     async function handleFiles(list){
       if(!openAI.value.trim()){warn('Enter your OpenAI key.');return;}
-      const oa=openAI.value.trim(),userPrompt=(prompt.value||DEF_PROMPT).trim(),
+      const oa=openAI.value.trim(),
+            userPrompt=(prompt.value||DEF_PROMPT).trim(),
             cname=cName.value.trim(),ckey=cKey.value.trim(),csec=cSec.value.trim(),
             useCloud=cname&&ckey&&csec;
       zipBtn.disabled=true;
@@ -279,11 +283,20 @@
               body:JSON.stringify({
                 model:'gpt-4o-mini',temperature:0.2,
                 messages:[
-                  {role:'system',content:'You are an expert photo captioning assistant.'},
-                  {role:'user',content:[
-                    {type:'text',text:userPrompt},
-                    {type:'image_url',image_url:{url:fr.result}}
-                  ]}
+                  {
+                    role:'system',
+                    content:[
+                      'You caption both black line‑art and flat‑color business illustrations.',
+                      'Always mention the style, identify the object, and note one key detail.'
+                    ].join(' ')
+                  },
+                  {
+                    role:'user',
+                    content:[
+                      userPrompt,
+                      { type:'image_url', image_url:{ url:fr.result } }
+                    ]
+                  }
                 ]
               })
             });
@@ -333,8 +346,14 @@
     /* ===== SUGGEST PROMPTS ===== */
     const suggestedPrompts=[];const promptList=$('suggestedList');
     promptBtn.onclick=()=>{$('industryInput').value='';$('promptCount').value='20';industryModal.show();};
-    $('industryForm').onsubmit=e=>{e.preventDefault();industryModal.hide();
-                                   runSuggestion($('industryInput').value.trim(),parseInt($('promptCount').value,10));};
+
+    /* ARIA‑safe submit – blur button before hiding modal */
+    industryForm.onsubmit=e=>{
+      e.preventDefault();
+      if (e.submitter) e.submitter.blur(); // remove focus so aria-hidden warning doesn’t fire
+      industryModal.hide();
+      runSuggestion($('industryInput').value.trim(),parseInt($('promptCount').value,10));
+    };
 
     async function runSuggestion(industry,count){
       if(!openAI.value.trim())return warn('Enter your OpenAI key.');
@@ -349,8 +368,14 @@
           body:JSON.stringify({
             model:'gpt-4o-mini',temperature:0.7,max_tokens:600,
             messages:[
-              {role:'system',content:'You generate creative prompts for AI image generation.'},
-              {role:'user',content:`Here are the images with captions:\n${summary}\n\nPlease give exactly ${count} concise prompts—one per line—matching the style and subject matter for a company in the ${industry} industry.`}
+              {
+                role:'system',
+                content:'You generate creative prompts for AI image generation. Each prompt MUST start with a style tag in square brackets, such as “[Black line art]” or “[Flat color vector]”.'
+              },
+              {
+                role:'user',
+                content: `Here are the images with captions:\n${summary}\n\nPlease return exactly ${count} prompts—one per line—starting with the style tag, followed by a concise description of a new image in the same style and subject matter for a company in the ${industry} industry. Do NOT include or reference text, words, phrases, or labels of any kind.`
+              }
             ]
           })
         });
@@ -359,7 +384,7 @@
         suggestedPrompts.length=0;
         raw.split(/\n+/).forEach(l=>{
           let s=l.replace(/^\d+[\.\)]\s*/,'').replace(/\*\*/g,'').trim();
-          if(s && !s.toLowerCase().startsWith('here are')) suggestedPrompts.push(s);
+          if(s && /^\[.*?\]/.test(s)) suggestedPrompts.push(s);
         });
         suggestedPrompts.splice(count);
         renderSuggested();okay('Prompts added');
