@@ -304,21 +304,46 @@
             cap.textContent=(await resp.json()).choices[0].message.content.trim();
             cap.classList.remove('fst-italic','text-muted');
 
-            if(useCloud){
-  st.textContent='Cloudinary…';
-  const ts=Math.floor(Date.now()/1e3),sig=await sha1(`timestamp=${ts}${csec}`),fd=new FormData();
-  fd.append('api_key',ckey);fd.append('timestamp',ts);fd.append('signature',sig);fd.append('file',fr.result);
-  const up=await fetch(`https://api.cloudinary.com/v1_1/${cname}/image/upload`,{method:'POST',body:fd});
-  if(!up.ok)throw new Error(await up.text());
-  const cd=await up.json();
-  row.dataset.cid=cd.public_id;
-  // Build 1024x1024 padded URL
-  const cloudUrl = `https://res.cloudinary.com/${cname}/image/upload/c_fill_pad,g_auto,w_1024,h_1024,b_white/${cd.public_id}.${cd.format}`;
-  img.src = cloudUrl;
-  dims.textContent = "1024×1024";
+         // …after setting cap.textContent and before st.textContent='Done'
+
+if (useCloud) {
+  st.textContent = 'Cloudinary…';
+  try {
+    const ts  = Math.floor(Date.now()/1e3),
+          sig = await sha1(`timestamp=${ts}${csec}`),
+          fd  = new FormData();
+    fd.append('api_key',   ckey);
+    fd.append('timestamp', ts);
+    fd.append('signature', sig);
+    fd.append('file',      fr.result);
+
+    const up = await fetch(
+      `https://api.cloudinary.com/v1_1/${cname}/image/upload`,
+      { method: 'POST', body: fd }
+    );
+    if (!up.ok) throw new Error(await up.text());
+
+    const cd = await up.json();
+    row.dataset.cid = cd.public_id;
+
+    const cloudUrl = 
+      `https://res.cloudinary.com/${cname}/image/upload/` +
+      `c_fill_pad,g_auto,w_1024,h_1024,b_white/` +
+      `${cd.public_id}.${cd.format}`;
+    img.src        = cloudUrl;
+    dims.textContent = '1024×1024';
+  } catch (e) {
+    console.warn('Cloudinary upload failed', e);
+    dims.textContent = 'N/A';
+  }
 } else {
-  const tmp=new Image();tmp.onload=()=>dims.textContent=`${tmp.width}×${tmp.height}`;tmp.src=fr.result;
+  const tmp = new Image();
+  tmp.onload = () => dims.textContent = `${tmp.width}×${tmp.height}`;
+  tmp.src    = fr.result;
 }
+
+st.textContent = 'Done';
+
 
             st.textContent='Done';
           }catch(e){console.error(e);cap.textContent=e.message||'Error';st.textContent='Error';}
