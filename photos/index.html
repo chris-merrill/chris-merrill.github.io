@@ -8,9 +8,6 @@
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     
-    <!-- Cropper.js CSS -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
-    
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     
@@ -24,7 +21,6 @@
             --text-secondary: #94a3b8;
             --border-color: #334155;
             --success-color: #10b981;
-            --danger-color: #ef4444;
         }
 
         * {
@@ -79,7 +75,7 @@
             animation: fadeInDown 0.8s ease-out 0.2s both;
         }
 
-        #video-container, #editor-container {
+        #video-container {
             position: relative;
             background: var(--card-bg);
             border-radius: 20px;
@@ -89,7 +85,7 @@
             overflow: hidden;
         }
 
-        #video-container::before, #editor-container::before {
+        #video-container::before {
             content: '';
             position: absolute;
             top: 0;
@@ -101,19 +97,79 @@
             animation: shimmer 3s linear infinite;
         }
 
-        #video, #crop-image {
+        .video-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        #video {
             width: 100%;
             max-width: 100%;
             height: auto;
             border-radius: 12px;
             background: #000;
+            display: block;
         }
 
-        #canvas {
+        /* Square crop guide overlay */
+        .crop-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 3px solid rgba(99, 102, 241, 0.8);
+            border-radius: 12px;
+            pointer-events: none;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+        }
+
+        .crop-guide::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 9px;
+        }
+
+        /* Grid lines */
+        .crop-guide::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 33.33% 33.33%;
+            background-position: -1px -1px;
+            border-radius: 9px;
+        }
+
+        .guide-label {
+            position: absolute;
+            top: -30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(99, 102, 241, 0.9);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        #canvas, #cropCanvas {
             display: none;
         }
 
-        .capture-btn, .edit-btn {
+        .capture-btn {
             background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
             border: none;
             font-size: 1.3rem;
@@ -127,13 +183,7 @@
             animation: fadeInUp 0.8s ease-out 0.6s both;
         }
 
-        .edit-btn {
-            font-size: 1.1rem;
-            padding: 12px 24px;
-            margin: 10px 5px;
-        }
-
-        .capture-btn::before, .edit-btn::before {
+        .capture-btn::before {
             content: '';
             position: absolute;
             top: 50%;
@@ -146,22 +196,18 @@
             transition: width 0.6s, height 0.6s;
         }
 
-        .capture-btn:hover, .edit-btn:hover {
+        .capture-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
         }
 
-        .capture-btn:hover::before, .edit-btn:hover::before {
+        .capture-btn:hover::before {
             width: 300px;
             height: 300px;
         }
 
-        .capture-btn:active, .edit-btn:active {
+        .capture-btn:active {
             transform: translateY(0);
-        }
-
-        .cancel-btn {
-            background: var(--danger-color);
         }
 
         .preview-section {
@@ -216,7 +262,8 @@
 
         .preview-image {
             width: 100%;
-            height: 180px;
+            height: auto;
+            aspect-ratio: 1;
             object-fit: cover;
             border-radius: 8px;
             transition: all 0.3s ease;
@@ -279,45 +326,6 @@
             color: var(--text-secondary);
             border: 1px solid var(--border-color);
             animation: fadeInRight 1s ease-out 1s both;
-        }
-
-        /* Editor specific styles */
-        #editor-container {
-            display: none;
-        }
-
-        .crop-container {
-            max-height: 500px;
-            overflow: hidden;
-        }
-
-        .aspect-buttons {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .aspect-btn {
-            background: var(--card-bg);
-            border: 2px solid var(--border-color);
-            color: var(--text-primary);
-            padding: 8px 16px;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .aspect-btn:hover {
-            border-color: var(--primary-color);
-            background: rgba(99, 102, 241, 0.1);
-        }
-
-        .aspect-btn.active {
-            background: var(--primary-color);
-            border-color: var(--primary-color);
         }
 
         @keyframes fadeInDown {
@@ -405,6 +413,42 @@
             transform: translateX(0);
         }
 
+        /* Camera selector */
+        .camera-selector {
+            margin-bottom: 30px;
+            animation: fadeInDown 0.8s ease-out 0.3s both;
+        }
+
+        .camera-selector label {
+            color: var(--text-secondary);
+            margin-right: 10px;
+            font-weight: 500;
+        }
+
+        .camera-dropdown {
+            background: var(--card-bg);
+            color: var(--text-primary);
+            border: 2px solid var(--border-color);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-family: 'Inter', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 250px;
+        }
+
+        .camera-dropdown:hover {
+            border-color: var(--primary-color);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        .camera-dropdown:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             h1 {
@@ -428,32 +472,27 @@
     <div class="container main-container">
         <div class="text-center">
             <h1>Product Photo Studio</h1>
-            <p class="subtitle">Professional photos for your eBay listings</p>
+            <p class="subtitle">Professional square photos for your eBay listings</p>
             
-            <!-- Camera View -->
-            <div id="video-container">
-                <video id="video" autoplay playsinline></video>
+            <!-- Camera selector -->
+            <div class="camera-selector" id="camera-selector-container" style="display: none;">
+                <label for="camera-select">Camera:</label>
+                <select id="camera-select" class="camera-dropdown">
+                    <option value="">Loading cameras...</option>
+                </select>
             </div>
             
-            <!-- Editor View -->
-            <div id="editor-container">
-                <div class="crop-container">
-                    <img id="crop-image" />
-                </div>
-                <div class="aspect-buttons">
-                    <button class="aspect-btn" data-aspect="0">Free</button>
-                    <button class="aspect-btn active" data-aspect="1">Square (1:1)</button>
-                    <button class="aspect-btn" data-aspect="1.333">4:3</button>
-                    <button class="aspect-btn" data-aspect="1.777">16:9</button>
-                    <button class="aspect-btn" data-aspect="0.75">3:4 Portrait</button>
-                </div>
-                <div>
-                    <button id="save-crop" class="btn edit-btn">💾 Save & Download</button>
-                    <button id="cancel-crop" class="btn edit-btn cancel-btn">❌ Cancel</button>
+            <div id="video-container">
+                <div class="video-wrapper">
+                    <video id="video" autoplay playsinline></video>
+                    <div class="crop-guide" id="cropGuide">
+                        <div class="guide-label">Square Crop Area</div>
+                    </div>
                 </div>
             </div>
             
             <canvas id="canvas"></canvas>
+            <canvas id="cropCanvas"></canvas>
             
             <button id="capture" class="btn capture-btn">
                 <span>📸 Capture Photo</span>
@@ -472,43 +511,96 @@
         💡 Pro tip: Press <strong>Spacebar</strong> to capture
     </div>
 
-    <!-- Cropper.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
-
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const video = document.getElementById('video');
             const canvas = document.getElementById('canvas');
+            const cropCanvas = document.getElementById('cropCanvas');
             const context = canvas.getContext('2d');
+            const cropContext = cropCanvas.getContext('2d');
             const captureButton = document.getElementById('capture');
             const previewsContainer = document.getElementById('previews');
             const flashOverlay = document.getElementById('flash');
             const notification = document.getElementById('notification');
-            const videoContainer = document.getElementById('video-container');
-            const editorContainer = document.getElementById('editor-container');
-            const cropImage = document.getElementById('crop-image');
-            const saveCropButton = document.getElementById('save-crop');
-            const cancelCropButton = document.getElementById('cancel-crop');
+            const cropGuide = document.getElementById('cropGuide');
+            const cameraSelect = document.getElementById('camera-select');
+            const cameraSelectorContainer = document.getElementById('camera-selector-container');
             
             let recentPhotos = [];
-            let cropper = null;
-            let currentBlob = null;
+            let squareSize = 0;
+            let currentStream = null;
+            let availableDevices = [];
+            
+            // Get available cameras
+            async function getCameras() {
+                try {
+                    // First request permission to access cameras
+                    await navigator.mediaDevices.getUserMedia({ video: true });
+                    
+                    // Get all devices
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    availableDevices = devices.filter(device => device.kind === 'videoinput');
+                    
+                    // Clear and populate dropdown
+                    cameraSelect.innerHTML = '';
+                    
+                    if (availableDevices.length > 1) {
+                        cameraSelectorContainer.style.display = 'block';
+                    }
+                    
+                    availableDevices.forEach((device, index) => {
+                        const option = document.createElement('option');
+                        option.value = device.deviceId;
+                        option.text = device.label || `Camera ${index + 1}`;
+                        cameraSelect.appendChild(option);
+                    });
+                    
+                    // Start with the first camera
+                    if (availableDevices.length > 0) {
+                        initWebcam(availableDevices[0].deviceId);
+                    }
+                } catch (err) {
+                    console.error('Error getting cameras:', err);
+                    alert('Unable to access cameras. Please ensure you have granted camera permissions.');
+                }
+            }
             
             // Initialize webcam
-            async function initWebcam() {
+            async function initWebcam(deviceId) {
                 try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { 
+                    // Stop current stream if exists
+                    if (currentStream) {
+                        currentStream.getTracks().forEach(track => track.stop());
+                    }
+                    
+                    const constraints = {
+                        video: {
+                            deviceId: deviceId ? { exact: deviceId } : undefined,
                             width: { ideal: 1920 },
                             height: { ideal: 1080 },
                             facingMode: 'user'
-                        } 
-                    });
-                    video.srcObject = stream;
+                        }
+                    };
+                    
+                    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    video.srcObject = currentStream;
+                    video.addEventListener('loadedmetadata', updateCropGuide);
                 } catch (err) {
                     console.error('Error accessing webcam:', err);
                     alert('Unable to access webcam. Please ensure you have granted camera permissions.');
                 }
+            }
+            
+            // Update crop guide size and position
+            function updateCropGuide() {
+                const videoWidth = video.offsetWidth;
+                const videoHeight = video.offsetHeight;
+                
+                // Calculate square size (80% of the smaller dimension)
+                squareSize = Math.min(videoWidth, videoHeight) * 0.8;
+                
+                cropGuide.style.width = squareSize + 'px';
+                cropGuide.style.height = squareSize + 'px';
             }
             
             // Format timestamp for display
@@ -525,50 +617,14 @@
             }
             
             // Show success notification
-            function showNotification(message = '✓ Photo captured!') {
-                notification.textContent = message;
+            function showNotification() {
                 notification.classList.add('show');
                 setTimeout(() => {
                     notification.classList.remove('show');
                 }, 3000);
             }
             
-            // Initialize cropper
-            function initCropper(imageUrl) {
-                cropImage.src = imageUrl;
-                videoContainer.style.display = 'none';
-                captureButton.style.display = 'none';
-                editorContainer.style.display = 'block';
-                
-                cropper = new Cropper(cropImage, {
-                    aspectRatio: 1,
-                    viewMode: 2,
-                    guides: true,
-                    center: true,
-                    highlight: true,
-                    background: true,
-                    autoCropArea: 0.9,
-                    movable: true,
-                    rotatable: false,
-                    scalable: true,
-                    zoomable: true,
-                    zoomOnTouch: true,
-                    zoomOnWheel: true
-                });
-            }
-            
-            // Destroy cropper and return to camera
-            function closeCropper() {
-                if (cropper) {
-                    cropper.destroy();
-                    cropper = null;
-                }
-                editorContainer.style.display = 'none';
-                videoContainer.style.display = 'block';
-                captureButton.style.display = 'inline-block';
-            }
-            
-            // Capture photo function
+            // Capture and auto-crop photo
             function capturePhoto() {
                 // Flash effect
                 flashOverlay.classList.add('flash-animation');
@@ -583,30 +639,30 @@
                 // Draw current video frame to canvas
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // Convert canvas to blob and open editor
-                canvas.toBlob(function(blob) {
-                    currentBlob = blob;
-                    const url = URL.createObjectURL(blob);
-                    initCropper(url);
-                }, 'image/jpeg', 0.95);
-            }
-            
-            // Save cropped image
-            function saveCroppedImage() {
-                if (!cropper) return;
+                // Calculate crop dimensions
+                const scale = video.videoWidth / video.offsetWidth;
+                const cropSize = squareSize * scale;
+                const startX = (video.videoWidth - cropSize) / 2;
+                const startY = (video.videoHeight - cropSize) / 2;
                 
-                cropper.getCroppedCanvas({
-                    maxWidth: 2000,
-                    maxHeight: 2000,
-                    fillColor: '#fff',
-                    imageSmoothingEnabled: true,
-                    imageSmoothingQuality: 'high'
-                }).toBlob(function(blob) {
+                // Set crop canvas to square
+                cropCanvas.width = cropSize;
+                cropCanvas.height = cropSize;
+                
+                // Draw cropped square image
+                cropContext.drawImage(
+                    canvas,
+                    startX, startY, cropSize, cropSize,  // Source rectangle
+                    0, 0, cropSize, cropSize              // Destination rectangle
+                );
+                
+                // Convert to blob and download
+                cropCanvas.toBlob(function(blob) {
                     const timestamp = new Date().getTime();
                     const date = new Date(timestamp);
                     const dateStr = date.toISOString().split('T')[0];
                     const timeStr = date.toTimeString().split(' ')[0].replace(/:/g, '-');
-                    const filename = `ebay-product-${dateStr}-${timeStr}.jpg`;
+                    const filename = `ebay-product-${dateStr}-${timeStr}-square.jpg`;
                     const url = URL.createObjectURL(blob);
                     
                     // Trigger download
@@ -631,8 +687,7 @@
                     }
                     
                     updatePreviews();
-                    showNotification('✓ Photo saved!');
-                    closeCropper();
+                    showNotification();
                     
                 }, 'image/jpeg', 0.95);
             }
@@ -690,40 +745,29 @@
                 });
             }
             
-            // Aspect ratio buttons
-            document.querySelectorAll('.aspect-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    document.querySelectorAll('.aspect-btn').forEach(b => b.classList.remove('active'));
-                    this.classList.add('active');
-                    
-                    const aspect = parseFloat(this.dataset.aspect);
-                    if (cropper) {
-                        cropper.setAspectRatio(aspect || NaN);
-                    }
-                });
-            });
-            
             // Event listeners
             captureButton.addEventListener('click', capturePhoto);
-            saveCropButton.addEventListener('click', saveCroppedImage);
-            cancelCropButton.addEventListener('click', closeCropper);
             
-            // Keyboard shortcuts
-            document.addEventListener('keydown', function(e) {
-                if (e.code === 'Space' && e.target === document.body && !cropper) {
-                    e.preventDefault();
-                    capturePhoto();
-                } else if (e.code === 'Enter' && cropper) {
-                    e.preventDefault();
-                    saveCroppedImage();
-                } else if (e.code === 'Escape' && cropper) {
-                    e.preventDefault();
-                    closeCropper();
+            // Camera selector change
+            cameraSelect.addEventListener('change', function() {
+                if (this.value) {
+                    initWebcam(this.value);
                 }
             });
             
-            // Initialize webcam
-            initWebcam();
+            // Keyboard shortcut (spacebar to capture)
+            document.addEventListener('keydown', function(e) {
+                if (e.code === 'Space' && e.target === document.body) {
+                    e.preventDefault();
+                    capturePhoto();
+                }
+            });
+            
+            // Update crop guide on window resize
+            window.addEventListener('resize', updateCropGuide);
+            
+            // Initialize cameras on page load
+            getCameras();
         });
     </script>
 </body>
