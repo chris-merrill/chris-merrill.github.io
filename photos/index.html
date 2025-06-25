@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eBay Product Photo Capture</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        #video {
+            width: 100%;
+            max-width: 640px;
+            height: auto;
+            border: 3px solid #dee2e6;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        #canvas {
+            display: none;
+        }
+        .preview-container {
+            margin-top: 30px;
+        }
+        .preview-image {
+            width: 100%;
+            max-width: 200px;
+            height: 150px;
+            object-fit: cover;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .preview-image:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .capture-btn {
+            font-size: 1.2rem;
+            padding: 12px 30px;
+            margin-top: 20px;
+        }
+        .main-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 30px 15px;
+        }
+        .recent-photos-title {
+            margin-bottom: 20px;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <div class="container main-container">
+        <div class="text-center">
+            <h1 class="mb-4">eBay Product Photo Capture</h1>
+            
+            <!-- Video element for webcam -->
+            <video id="video" autoplay playsinline></video>
+            
+            <!-- Canvas element for capturing photos (hidden) -->
+            <canvas id="canvas"></canvas>
+            
+            <!-- Capture button -->
+            <div>
+                <button id="capture" class="btn btn-primary capture-btn">
+                    📸 Capture Photo
+                </button>
+            </div>
+            
+            <!-- Preview container -->
+            <div class="preview-container">
+                <h3 class="recent-photos-title">Recent Photos</h3>
+                <div id="previews" class="row g-3 justify-content-center">
+                    <!-- Preview images will be inserted here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Pure vanilla JavaScript - no jQuery needed
+        document.addEventListener('DOMContentLoaded', function() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            const captureButton = document.getElementById('capture');
+            const previewsContainer = document.getElementById('previews');
+            
+            // Store recent photos in memory (not localStorage)
+            let recentPhotos = [];
+            
+            // Initialize webcam
+            async function initWebcam() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { 
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        } 
+                    });
+                    video.srcObject = stream;
+                } catch (err) {
+                    console.error('Error accessing webcam:', err);
+                    alert('Unable to access webcam. Please ensure you have granted camera permissions.');
+                }
+            }
+            
+            // Capture photo function
+            function capturePhoto() {
+                // Set canvas dimensions to match video
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                // Draw current video frame to canvas
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Convert canvas to blob
+                canvas.toBlob(function(blob) {
+                    // Create download link
+                    const timestamp = new Date().getTime();
+                    const filename = `ebay-product-${timestamp}.jpg`;
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Trigger download
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    // Add to recent photos (keep only last 3)
+                    recentPhotos.unshift({
+                        url: url,
+                        timestamp: timestamp
+                    });
+                    
+                    // Keep only the last 3 photos
+                    if (recentPhotos.length > 3) {
+                        // Revoke the URL of the oldest photo to free memory
+                        URL.revokeObjectURL(recentPhotos[3].url);
+                        recentPhotos = recentPhotos.slice(0, 3);
+                    }
+                    
+                    // Update preview display
+                    updatePreviews();
+                    
+                    // Flash effect for capture feedback
+                    video.style.opacity = '0.3';
+                    setTimeout(() => {
+                        video.style.opacity = '1';
+                    }, 100);
+                    
+                }, 'image/jpeg', 0.9);
+            }
+            
+            // Update preview display
+            function updatePreviews() {
+                // Clear existing previews
+                previewsContainer.innerHTML = '';
+                
+                recentPhotos.forEach(function(photo, index) {
+                    // Create column div
+                    const col = document.createElement('div');
+                    col.className = 'col-4';
+                    
+                    // Create image element
+                    const img = document.createElement('img');
+                    img.src = photo.url;
+                    img.className = 'preview-image';
+                    img.title = 'Click to download again';
+                    
+                    // Add click handler for re-download
+                    img.addEventListener('click', function() {
+                        const a = document.createElement('a');
+                        a.href = photo.url;
+                        a.download = `ebay-product-${photo.timestamp}.jpg`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    });
+                    
+                    col.appendChild(img);
+                    previewsContainer.appendChild(col);
+                });
+            }
+            
+            // Event listeners
+            captureButton.addEventListener('click', capturePhoto);
+            
+            // Keyboard shortcut (spacebar to capture)
+            document.addEventListener('keydown', function(e) {
+                if (e.keyCode === 32) { // Spacebar
+                    e.preventDefault();
+                    capturePhoto();
+                }
+            });
+            
+            // Initialize webcam on page load
+            initWebcam();
+        });
+    </script>
+</body>
+</html>
