@@ -53,25 +53,25 @@
         .main-container {
             max-width: 900px;
             margin: 0 auto;
-            padding: 40px 20px;
+            padding: 20px 15px;
             position: relative;
             z-index: 1;
         }
 
         h1 {
-            font-size: 3rem;
+            font-size: 2.5rem;
             font-weight: 700;
             background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
             animation: fadeInDown 0.8s ease-out;
         }
 
         .subtitle {
             color: var(--text-secondary);
-            font-size: 1.1rem;
-            margin-bottom: 40px;
+            font-size: 1rem;
+            margin-bottom: 20px;
             animation: fadeInDown 0.8s ease-out 0.2s both;
         }
 
@@ -79,10 +79,12 @@
             position: relative;
             background: var(--card-bg);
             border-radius: 20px;
-            padding: 20px;
+            padding: 15px;
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
             animation: fadeInUp 0.8s ease-out 0.4s both;
             overflow: hidden;
+            max-width: 600px;
+            margin: 0 auto;
         }
 
         #video-container::before {
@@ -172,15 +174,30 @@
         .capture-btn {
             background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
             border: none;
-            font-size: 1.3rem;
+            font-size: 1.1rem;
             font-weight: 600;
-            padding: 16px 40px;
-            margin-top: 30px;
+            padding: 12px 30px;
+            margin-top: 20px;
+            margin-right: 10px;
             border-radius: 12px;
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
             animation: fadeInUp 0.8s ease-out 0.6s both;
+        }
+
+        .capture-btn-secondary {
+            background: var(--card-bg);
+            border: 2px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            padding: 10px 20px;
+            margin-top: 20px;
+        }
+
+        .capture-btn-secondary:hover {
+            border-color: var(--primary-color);
+            background: rgba(99, 102, 241, 0.1);
         }
 
         .capture-btn::before {
@@ -211,32 +228,37 @@
         }
 
         .preview-section {
-            margin-top: 50px;
+            margin-top: 30px;
             animation: fadeInUp 0.8s ease-out 0.8s both;
         }
 
         .preview-section h3 {
-            font-size: 1.8rem;
+            font-size: 1.4rem;
             font-weight: 600;
-            margin-bottom: 30px;
+            margin-bottom: 10px;
             color: var(--text-primary);
+        }
+
+        .preview-section p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 15px;
         }
 
         .preview-card {
             background: var(--card-bg);
-            border-radius: 16px;
-            padding: 15px;
-            margin-bottom: 20px;
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 15px;
             transition: all 0.3s ease;
-            cursor: move;
+            cursor: pointer;
             position: relative;
             overflow: hidden;
             animation: slideInLeft 0.5s ease-out;
-            user-select: none;
         }
 
         .preview-card::before {
-            content: '🔄 Drag to eBay or 📥 Click to Download';
+            content: '📥 Download';
             position: absolute;
             top: 50%;
             left: 50%;
@@ -250,7 +272,6 @@
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
-            white-space: nowrap;
         }
 
         .preview-card:hover::before {
@@ -266,7 +287,6 @@
         .preview-card.dragging {
             opacity: 0.5;
             transform: scale(0.95);
-            cursor: grabbing;
         }
 
         .preview-image {
@@ -281,30 +301,30 @@
 
         .preview-card:hover .preview-image {
             opacity: 0.7;
-            transform: scale(1.05);
+            transform: scale(1.03);
         }
 
         .preview-info {
-            margin-top: 12px;
-            padding-top: 12px;
+            margin-top: 8px;
+            padding-top: 8px;
             border-top: 1px solid var(--border-color);
         }
 
         .preview-time {
             color: var(--text-secondary);
-            font-size: 0.9rem;
+            font-size: 0.8rem;
             display: flex;
             align-items: center;
-            gap: 6px;
-            margin-bottom: 4px;
+            gap: 4px;
+            margin-bottom: 3px;
         }
 
         .preview-filename {
             color: var(--text-primary);
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             font-family: monospace;
             background: rgba(99, 102, 241, 0.1);
-            padding: 4px 8px;
+            padding: 3px 6px;
             border-radius: 4px;
             word-break: break-all;
         }
@@ -425,27 +445,28 @@
 
         /* Camera selector */
         .camera-selector {
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             animation: fadeInDown 0.8s ease-out 0.3s both;
         }
 
         .camera-selector label {
             color: var(--text-secondary);
-            margin-right: 10px;
+            margin-right: 8px;
             font-weight: 500;
+            font-size: 0.9rem;
         }
 
         .camera-dropdown {
             background: var(--card-bg);
             color: var(--text-primary);
             border: 2px solid var(--border-color);
-            padding: 10px 20px;
-            border-radius: 10px;
-            font-size: 1rem;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 0.9rem;
             font-family: 'Inter', sans-serif;
             cursor: pointer;
             transition: all 0.3s ease;
-            min-width: 250px;
+            min-width: 200px;
         }
 
         .camera-dropdown:hover {
@@ -508,12 +529,16 @@
                 <span>📸 Capture Photo</span>
             </button>
             
+            <button id="capture-advanced" class="btn capture-btn-secondary">
+                <span>✏️ Advanced Capture</span>
+            </button>
+            
             <div class="preview-section">
                 <h3>Recent Captures</h3>
-                <p style="color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 20px;">
-                    💡 Drag photos directly to eBay's upload area or click to download
-                </p>
-                <div id="previews" class="row g-3">
+                <div id="previews" class="row g-2">
+                    <!-- Preview images will be inserted here -->
+                </div>
+            <div id="previews" class="row g-3">
                     <!-- Preview images will be inserted here -->
                 </div>
             </div>
@@ -532,6 +557,7 @@
             const context = canvas.getContext('2d');
             const cropContext = cropCanvas.getContext('2d');
             const captureButton = document.getElementById('capture');
+            const captureAdvancedButton = document.getElementById('capture-advanced');
             const previewsContainer = document.getElementById('previews');
             const flashOverlay = document.getElementById('flash');
             const notification = document.getElementById('notification');
@@ -638,7 +664,7 @@
             }
             
             // Capture and auto-crop photo
-            function capturePhoto() {
+            function capturePhoto(useAdvancedMode = false) {
                 // Flash effect
                 flashOverlay.classList.add('flash-animation');
                 setTimeout(() => {
@@ -652,57 +678,91 @@
                 // Draw current video frame to canvas
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
                 
-                // Calculate crop dimensions
-                const scale = video.videoWidth / video.offsetWidth;
-                const cropSize = squareSize * scale;
-                const startX = (video.videoWidth - cropSize) / 2;
-                const startY = (video.videoHeight - cropSize) / 2;
-                
-                // Set crop canvas to square
-                cropCanvas.width = cropSize;
-                cropCanvas.height = cropSize;
-                
-                // Draw cropped square image
-                cropContext.drawImage(
-                    canvas,
-                    startX, startY, cropSize, cropSize,  // Source rectangle
-                    0, 0, cropSize, cropSize              // Destination rectangle
-                );
-                
-                // Convert to blob and download
-                cropCanvas.toBlob(function(blob) {
-                    const timestamp = new Date().getTime();
-                    const date = new Date(timestamp);
-                    const dateStr = date.toISOString().split('T')[0];
-                    const timeStr = date.toTimeString().split(' ')[0].replace(/:/g, '-');
-                    const filename = `ebay-product-${dateStr}-${timeStr}-square.jpg`;
-                    const url = URL.createObjectURL(blob);
+                if (useAdvancedMode) {
+                    // Advanced mode - save full image for manual editing
+                    canvas.toBlob(function(blob) {
+                        const timestamp = new Date().getTime();
+                        const date = new Date(timestamp);
+                        const dateStr = date.toISOString().split('T')[0];
+                        const timeStr = date.toTimeString().split(' ')[0].replace(/:/g, '-');
+                        const filename = `ebay-product-${dateStr}-${timeStr}-full.jpg`;
+                        const url = URL.createObjectURL(blob);
+                        
+                        // Download full image
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        showNotification('✓ Full photo saved - edit in your favorite app!');
+                    }, 'image/jpeg', 0.95);
+                } else {
+                    // Normal mode - auto crop to square
+                    // Calculate crop dimensions
+                    const scale = video.videoWidth / video.offsetWidth;
+                    const cropSize = squareSize * scale;
+                    const startX = (video.videoWidth - cropSize) / 2;
+                    const startY = (video.videoHeight - cropSize) / 2;
                     
-                    // Trigger download
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
+                    // Set crop canvas to square
+                    cropCanvas.width = cropSize;
+                    cropCanvas.height = cropSize;
                     
-                    // Add to recent photos
-                    recentPhotos.unshift({
-                        url: url,
-                        timestamp: timestamp,
-                        filename: filename
-                    });
+                    // Draw cropped square image
+                    cropContext.drawImage(
+                        canvas,
+                        startX, startY, cropSize, cropSize,  // Source rectangle
+                        0, 0, cropSize, cropSize              // Destination rectangle
+                    );
                     
-                    // Keep only the last 3 photos
-                    if (recentPhotos.length > 3) {
-                        URL.revokeObjectURL(recentPhotos[3].url);
-                        recentPhotos = recentPhotos.slice(0, 3);
+                    // Ensure minimum size of 500px
+                    let finalCanvas = cropCanvas;
+                    if (cropSize < 500) {
+                        // Create a new canvas at 500px if the crop is smaller
+                        finalCanvas = document.createElement('canvas');
+                        finalCanvas.width = 500;
+                        finalCanvas.height = 500;
+                        const finalContext = finalCanvas.getContext('2d');
+                        finalContext.drawImage(cropCanvas, 0, 0, 500, 500);
                     }
                     
-                    updatePreviews();
-                    showNotification();
-                    
-                }, 'image/jpeg', 0.95);
+                    // Convert to blob and download
+                    finalCanvas.toBlob(function(blob) {
+                        const timestamp = new Date().getTime();
+                        const date = new Date(timestamp);
+                        const dateStr = date.toISOString().split('T')[0];
+                        const timeStr = date.toTimeString().split(' ')[0].replace(/:/g, '-');
+                        const filename = `ebay-product-${dateStr}-${timeStr}-square.jpg`;
+                        const url = URL.createObjectURL(blob);
+                        
+                        // Trigger download
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        
+                        // Add to recent photos
+                        recentPhotos.unshift({
+                            url: url,
+                            timestamp: timestamp,
+                            filename: filename
+                        });
+                        
+                        // Keep only the last 3 photos
+                        if (recentPhotos.length > 3) {
+                            URL.revokeObjectURL(recentPhotos[3].url);
+                            recentPhotos = recentPhotos.slice(0, 3);
+                        }
+                        
+                        updatePreviews();
+                        showNotification();
+                        
+                    }, 'image/jpeg', 0.95);
+                }
             }
             
             // Update preview display
@@ -715,12 +775,10 @@
                     
                     const card = document.createElement('div');
                     card.className = 'preview-card';
-                    card.draggable = true;
                     
                     const img = document.createElement('img');
                     img.src = photo.url;
                     img.className = 'preview-image';
-                    img.draggable = false; // Prevent image from being dragged separately
                     
                     const info = document.createElement('div');
                     info.className = 'preview-info';
@@ -738,42 +796,6 @@
                     
                     card.appendChild(img);
                     card.appendChild(info);
-                    
-                    // Add drag event handlers
-                    card.addEventListener('dragstart', async function(e) {
-                        card.classList.add('dragging');
-                        
-                        // Convert blob URL to actual file for drag
-                        try {
-                            const response = await fetch(photo.url);
-                            const blob = await response.blob();
-                            const file = new File([blob], photo.filename, { type: 'image/jpeg' });
-                            
-                            // Use DataTransfer files API
-                            const dt = e.dataTransfer;
-                            dt.effectAllowed = 'copy';
-                            
-                            // For browsers that support it, add the file directly
-                            if (dt.items && dt.items.add) {
-                                dt.items.add(file);
-                            } else {
-                                // Fallback: set URL for browsers that don't support file dragging
-                                dt.setData('DownloadURL', `image/jpeg:${photo.filename}:${photo.url}`);
-                                dt.setData('text/uri-list', photo.url);
-                            }
-                            
-                            // Create custom drag image
-                            const dragImage = new Image();
-                            dragImage.src = photo.url;
-                            dt.setDragImage(dragImage, 100, 100);
-                        } catch (err) {
-                            console.error('Error setting up drag:', err);
-                        }
-                    });
-                    
-                    card.addEventListener('dragend', function() {
-                        card.classList.remove('dragging');
-                    });
                     
                     // Add click handler for download
                     card.addEventListener('click', function() {
@@ -797,7 +819,8 @@
             }
             
             // Event listeners
-            captureButton.addEventListener('click', capturePhoto);
+            captureButton.addEventListener('click', () => capturePhoto(false));
+            captureAdvancedButton.addEventListener('click', () => capturePhoto(true));
             
             // Camera selector change
             cameraSelect.addEventListener('change', function() {
@@ -810,7 +833,7 @@
             document.addEventListener('keydown', function(e) {
                 if (e.code === 'Space' && e.target === document.body) {
                     e.preventDefault();
-                    capturePhoto();
+                    capturePhoto(false);
                 }
             });
             
