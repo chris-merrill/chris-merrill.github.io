@@ -113,6 +113,19 @@
     <div class="shortcuts-hint">
         💡 Pro tip: Press <strong>Spacebar</strong> to capture
     </div>
+    
+    <!-- Chrome Resolution Warning -->
+    <div id="chrome-warning" class="chrome-warning" style="display: none;">
+        <h4>⚠️ Chrome Low Resolution Detected</h4>
+        <p>Chrome is limiting your camera to low resolution. To fix:</p>
+        <ol>
+            <li>Go to chrome://flags/#enable-webrtc-hide-local-ips-with-mdns</li>
+            <li>Set it to "Disabled"</li>
+            <li>Restart Chrome</li>
+        </ol>
+        <p>Or use Firefox for automatic 4K support!</p>
+        <button onclick="this.parentElement.style.display='none'" class="btn btn-sm btn-secondary">Dismiss</button>
+    </div>
 
     <!-- Custom JavaScript -->
     <script src="app.js"></script>
