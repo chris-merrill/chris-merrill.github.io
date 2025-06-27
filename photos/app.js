@@ -1,7 +1,21 @@
-document.addEventListener('DOMContentLoaded', function() {
+// Ensure DOM is fully loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}
+
+function init() {
     // DOM Elements
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
+    
+    // Check if canvas exists
+    if (!canvas) {
+        console.error('Canvas element not found');
+        return;
+    }
+    
     const context = canvas.getContext('2d');
     const captureButton = document.getElementById('capture');
     const previewsContainer = document.getElementById('previews');
@@ -220,4 +234,4 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Start
     getCameras();
-});
+}
