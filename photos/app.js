@@ -73,29 +73,94 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentStream.getTracks().forEach(track => track.stop());
             }
             
-            // Try 4K first, then fallback to best available
-            const constraints = {
-                video: {
-                    deviceId: deviceId ? { exact: deviceId } : undefined,
-                    width: { ideal: 3840, min: 1920 },
-                    height: { ideal: 2160, min: 1080 },
-                    frameRate: { ideal: 30, min: 24 },
-                    facingMode: 'environment' // Try rear camera first for better quality
-                }
-            };
+            // Chrome-specific workaround: use exact constraints for better results
+            const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+            
+            let constraints;
+            if (isChrome) {
+                // For Chrome, try exact constraints first
+                constraints = {
+                    video: {
+                        deviceId: deviceId ? { exact: deviceId } : undefined,
+                        width: { exact: 3840 },
+                        height: { exact: 2160 },
+                        frameRate: { exact: 30 }
+                    }
+                };
+            } else {
+                // For other browsers, use ideal constraints
+                constraints = {
+                    video: {
+                        deviceId: deviceId ? { exact: deviceId } : undefined,
+                        width: { ideal: 3840, min: 1920 },
+                        height: { ideal: 2160, min: 1080 },
+                        frameRate: { ideal: 30, min: 24 },
+                        facingMode: 'environment'
+                    }
+                };
+            }
             
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
             } catch (err) {
-                // Fallback to front camera or lower resolution
-                console.log('4K not available, trying alternate settings');
-                constraints.video.width = { ideal: 1920 };
-                constraints.video.height = { ideal: 1080 };
-                constraints.video.facingMode = 'user';
-                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log('4K not available, trying 1080p');
+                // Try 1080p with exact constraints for Chrome
+                if (isChrome) {
+                    constraints = {
+                        video: {
+                            deviceId: deviceId ? { exact: deviceId } : undefined,
+                            width: { exact: 1920 },
+                            height: { exact: 1080 },
+                            frameRate: { max: 30 }
+                        }
+                    };
+                } else {
+                    constraints = {
+                        video: {
+                            deviceId: deviceId ? { exact: deviceId } : undefined,
+                            width: { ideal: 1920, min: 1280 },
+                            height: { ideal: 1080, min: 720 },
+                            frameRate: { ideal: 30 }
+                        }
+                    };
+                }
+                
+                try {
+                    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (err2) {
+                    // Final fallback - let browser choose
+                    console.log('HD not available, using default resolution');
+                    constraints = {
+                        video: {
+                            deviceId: deviceId ? { exact: deviceId } : undefined
+                        }
+                    };
+                    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                }
             }
             
             video.srcObject = currentStream;
+            
+            // Apply video track constraints to ensure highest quality
+            const videoTrack = currentStream.getVideoTracks()[0];
+            const capabilities = videoTrack.getCapabilities();
+            console.log('Camera capabilities:', capabilities);
+            
+            // Try to apply maximum resolution from capabilities
+            if (capabilities.width && capabilities.height) {
+                const newConstraints = {
+                    width: capabilities.width.max,
+                    height: capabilities.height.max
+                };
+                
+                videoTrack.applyConstraints(newConstraints)
+                    .then(() => {
+                        console.log('Applied max resolution constraints');
+                        updateResolutionDisplay();
+                    })
+                    .catch(e => console.log('Could not apply max constraints:', e));
+            }
+            
             video.addEventListener('loadedmetadata', () => {
                 updateCropGuide();
                 updateResolutionDisplay();
@@ -111,6 +176,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const track = currentStream.getVideoTracks()[0];
         const settings = track.getSettings();
         cameraResolutionDisplay.textContent = `${settings.width}x${settings.height} @ ${settings.frameRate}fps`;
+        
+        // Show Chrome warning if resolution is low
+        const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+        const chromeWarning = document.getElementById('chrome-warning');
+        
+        if (isChrome && settings.width <= 640 && chromeWarning) {
+            chromeWarning.style.display = 'block';
+        }
     }
     
     // Update crop guide size and position
