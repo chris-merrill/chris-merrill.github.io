@@ -227,93 +227,29 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 3000);
     }
     
-    // Apply image enhancements
+    // Apply image enhancements (OPTIMIZED FOR SPEED)
     function enhanceImage(context, width, height) {
+        // Skip if both options are disabled
         if (!autoEnhanceCheckbox.checked && !noiseReductionCheckbox.checked) return;
+        
+        // Only process if image is reasonably sized
+        if (width * height > 4000000) { // Skip for images over 4MP
+            console.log('Skipping enhancement for performance - image too large');
+            return;
+        }
         
         const imageData = context.getImageData(0, 0, width, height);
         const data = imageData.data;
         
         if (autoEnhanceCheckbox.checked) {
-            // Auto contrast and brightness adjustment
-            let min = 255, max = 0;
+            // Simple brightness/contrast adjustment only
+            const contrast = 1.1; // 10% contrast boost
+            const brightness = 5; // Slight brightness boost
             
-            // Find min and max values
             for (let i = 0; i < data.length; i += 4) {
-                const gray = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
-                min = Math.min(min, gray);
-                max = Math.max(max, gray);
-            }
-            
-            // Apply contrast stretch
-            const range = max - min;
-            if (range > 0) {
-                for (let i = 0; i < data.length; i += 4) {
-                    data[i] = Math.min(255, Math.max(0, ((data[i] - min) * 255) / range));
-                    data[i + 1] = Math.min(255, Math.max(0, ((data[i + 1] - min) * 255) / range));
-                    data[i + 2] = Math.min(255, Math.max(0, ((data[i + 2] - min) * 255) / range));
-                }
-            }
-            
-            // Slight sharpening
-            const sharpened = new Uint8ClampedArray(data);
-            const factor = 0.1; // Subtle sharpening
-            
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    const idx = (y * width + x) * 4;
-                    
-                    for (let c = 0; c < 3; c++) {
-                        const center = data[idx + c] * 5;
-                        const top = data[((y - 1) * width + x) * 4 + c];
-                        const bottom = data[((y + 1) * width + x) * 4 + c];
-                        const left = data[(y * width + (x - 1)) * 4 + c];
-                        const right = data[(y * width + (x + 1)) * 4 + c];
-                        
-                        const sharp = center - top - bottom - left - right;
-                        sharpened[idx + c] = Math.min(255, Math.max(0, data[idx + c] + sharp * factor));
-                    }
-                }
-            }
-            
-            // Copy sharpened data back
-            for (let i = 0; i < data.length; i++) {
-                data[i] = sharpened[i];
-            }
-        }
-        
-        if (noiseReductionCheckbox.checked) {
-            // Simple noise reduction using median-like filter
-            const filtered = new Uint8ClampedArray(data);
-            
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    const idx = (y * width + x) * 4;
-                    
-                    for (let c = 0; c < 3; c++) {
-                        const neighbors = [
-                            data[((y - 1) * width + (x - 1)) * 4 + c],
-                            data[((y - 1) * width + x) * 4 + c],
-                            data[((y - 1) * width + (x + 1)) * 4 + c],
-                            data[(y * width + (x - 1)) * 4 + c],
-                            data[idx + c],
-                            data[(y * width + (x + 1)) * 4 + c],
-                            data[((y + 1) * width + (x - 1)) * 4 + c],
-                            data[((y + 1) * width + x) * 4 + c],
-                            data[((y + 1) * width + (x + 1)) * 4 + c]
-                        ];
-                        
-                        neighbors.sort((a, b) => a - b);
-                        filtered[idx + c] = neighbors[4]; // Median
-                    }
-                }
-            }
-            
-            // Blend original with filtered (50% mix to preserve detail)
-            for (let i = 0; i < data.length; i += 4) {
-                data[i] = (data[i] + filtered[i]) / 2;
-                data[i + 1] = (data[i + 1] + filtered[i + 1]) / 2;
-                data[i + 2] = (data[i + 2] + filtered[i + 2]) / 2;
+                data[i] = Math.min(255, Math.max(0, (data[i] - 128) * contrast + 128 + brightness));
+                data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * contrast + 128 + brightness));
+                data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * contrast + 128 + brightness));
             }
         }
         
@@ -402,11 +338,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // Get target output size
             const outputSize = parseInt(outputSizeSelect.value);
             
+            // For eBay, we don't need huge files - cap at actual need
+            const finalSize = Math.min(outputSize, Math.max(cropSize, 1500));
+            
             // Create final canvas at target size
             const finalCanvas = document.createElement('canvas');
-            finalCanvas.width = outputSize;
-            finalCanvas.height = outputSize;
-            const finalContext = finalCanvas.getContext('2d', { willReadFrequently: true });
+            finalCanvas.width = finalSize;
+            finalCanvas.height = finalSize;
+            const finalContext = finalCanvas.getContext('2d');
             
             // Enable image smoothing for quality
             finalContext.imageSmoothingEnabled = true;
@@ -416,11 +355,13 @@ document.addEventListener('DOMContentLoaded', function() {
             finalContext.drawImage(
                 canvas,
                 startX, startY, cropSize, cropSize,  // Source rectangle
-                0, 0, outputSize, outputSize          // Destination rectangle
+                0, 0, finalSize, finalSize            // Destination rectangle
             );
             
-            // Apply enhancements
-            enhanceImage(finalContext, outputSize, outputSize);
+            // Apply enhancements only if enabled
+            if (autoEnhanceCheckbox.checked) {
+                enhanceImage(finalContext, finalSize, finalSize);
+            }
             
             // Get quality setting
             const quality = qualitySlider.value / 100;
@@ -437,7 +378,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const date = new Date(timestamp);
                 const dateStr = date.toISOString().split('T')[0];
                 const timeStr = date.toTimeString().split(' ')[0].replace(/:/g, '-');
-                const filename = `ebay-product-${dateStr}-${timeStr}-${outputSize}px.jpg`;
+                const filename = `ebay-product-${dateStr}-${timeStr}-${finalSize}px.jpg`;
                 
                 // Create object URL for preview
                 const url = URL.createObjectURL(blob);
@@ -462,7 +403,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Download the image
                 downloadBlob(blob, filename);
                 
-                showNotification(`✓ ${outputSize}×${outputSize}px photo captured!`);
+                showNotification(`✓ ${finalSize}×${finalSize}px photo captured!`);
                 
             }, 'image/jpeg', quality);
         }
