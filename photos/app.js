@@ -17,7 +17,6 @@ function init() {
     }
     
     const context = canvas.getContext('2d');
-    const captureButton = document.getElementById('capture');
     const previewsContainer = document.getElementById('previews');
     const flashOverlay = document.getElementById('flash');
     const cropGuide = document.getElementById('cropGuide');
@@ -88,6 +87,8 @@ function init() {
     
     // Update resolution display
     function updateResolutionDisplay() {
+        if (!currentStream || !cameraResolutionDisplay) return;
+        
         const track = currentStream.getVideoTracks()[0];
         const settings = track.getSettings();
         cameraResolutionDisplay.textContent = `${settings.width}×${settings.height} @ ${settings.frameRate}fps`;
@@ -166,9 +167,10 @@ function init() {
                 filename: filename
             });
             
-            if (recentPhotos.length > 3) {
-                URL.revokeObjectURL(recentPhotos[3].url);
-                recentPhotos = recentPhotos.slice(0, 3);
+            // Keep only the last 4 photos
+            if (recentPhotos.length > 4) {
+                URL.revokeObjectURL(recentPhotos[4].url);
+                recentPhotos = recentPhotos.slice(0, 4);
             }
             
             updatePreviews();
@@ -181,7 +183,7 @@ function init() {
         
         recentPhotos.forEach(photo => {
             const col = document.createElement('div');
-            col.className = 'col-md-4';
+            col.className = 'col-md-3';
             
             const card = document.createElement('div');
             card.className = 'preview-card';
@@ -215,8 +217,6 @@ function init() {
     }
     
     // Event listeners
-    captureButton.addEventListener('click', capturePhoto);
-    
     cameraSelect.addEventListener('change', function() {
         if (this.value) initWebcam(this.value);
     });
