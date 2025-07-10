@@ -636,6 +636,53 @@ h1 {
     background: var(--success-color);
 }
 
+/* Capture back button */
+.capture-back-btn {
+    background: transparent;
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin: 8px 10px 0;
+    width: calc(100% - 20px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.capture-back-btn:hover {
+    background: var(--primary-color);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.capture-back-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.capture-back-btn.has-back {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: var(--success-color);
+    color: var(--success-color);
+}
+
+/* Card back indicator */
+.card-back-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--success-color);
+    margin: 4px 10px 10px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     h1 {

@@ -37,6 +37,7 @@ function init() {
     let squareSize = 0;
     let currentStream = null;
     let openaiApiKey = localStorage.getItem('openai_api_key') || '';
+    let pendingBackCapture = null; // Track which photo is waiting for back capture
     
     // Initialize API status
     updateApiStatus();
@@ -185,13 +186,65 @@ function init() {
     }
     
     // Analyze image with OpenAI
-    async function analyzeImage(base64Image, photoIndex) {
+    async function analyzeImage(frontBase64, backBase64, photoIndex) {
         if (!openaiApiKey) return;
         
         const detailsContainer = document.getElementById(`details-${photoIndex}`);
         detailsContainer.innerHTML = '<div class="preview-details loading"><div class="loading-spinner"></div></div>';
         
         try {
+            const                 messages = [
+                {
+                    role: 'system',
+                    content: 'You analyze trading cards, sports cards, Hot Wheels, and collectibles for eBay listings. For Hot Wheels, include the series number (like 5/5) in the title. Respond only with JSON, no other text.'
+                },
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'text',
+                            text: `Analyze these ${backBase64 ? 'product' : 'card/product'} images (front${backBase64 ? ' and back' : ''}) and create JSON for eBay listing.
+${backBase64 ? 'IMPORTANT: Extract the series number (like 5/5) from the packaging if visible - this is crucial for the title.' : ''}
+
+Return ONLY this JSON structure with extracted information:
+{
+  "title": "60-80 char eBay title with year brand product/player card#/model ${backBase64 ? 'series# ' : ''}features",
+  "details": {
+    "brand": "manufacturer name or null",
+    "year": "year or null", 
+    "setName": "set/series name or null",
+    "cardNumber": "card/model number or null",
+    "seriesNumber": "${backBase64 ? 'series like 5/5 or null' : 'null'}",
+    "playerName": "player/character/model name or null",
+    "team": "team if applicable or null",
+    "features": [],
+    "condition": "condition or null",
+    "otherInfo": "other info or null"
+  }
+}`
+                        },
+                        {
+                            type: 'image_url',
+                            image_url: {
+                                url: `data:image/jpeg;base64,${frontBase64}`,
+                                detail: 'high'
+                            }
+                        }
+                    ]
+                }
+            ];
+            
+            // Add back image if provided
+            if (backBase64) {
+                messages[1].content.push({
+                    type: 'image_url',
+                    image_url: {
+                        url: `data:image/jpeg;base64,${backBase64}`,
+                        detail: 'high'
+                    }
+                });
+            }
+            
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -200,60 +253,17 @@ function init() {
                 },
                 body: JSON.stringify({
                     model: 'gpt-4o-mini',
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'You are an expert at analyzing trading cards, sports cards, and collectible cards for eBay listings. Extract all visible information from the card image.'
-                        },
-                        {
-                            role: 'user',
-                            content: [
-                                {
-                                    type: 'text',
-                                    text: `Analyze this card image and provide:
-1. A compelling eBay listing title (60-80 chars, include: year, brand, player/character name, card name/number, condition indicators if visible, any special features like "Rookie", "Holo", "1st Edition", etc.)
-2. Extract ALL visible details:
-   - Card Set/Series
-   - Card Number
-   - Player/Character Name
-   - Team (if applicable)
-   - Year/Copyright
-   - Manufacturer/Brand
-   - Card Type/Rarity
-   - Any special features (holographic, parallel, insert, etc.)
-   - Visible condition issues
-   - Any text/stats on the card
-
-Format the response as JSON:
-{
-  "title": "eBay listing title here",
-  "details": {
-    "brand": "...",
-    "year": "...",
-    "setName": "...",
-    "cardNumber": "...",
-    "playerName": "...",
-    "team": "...",
-    "features": ["..."],
-    "condition": "...",
-    "otherInfo": "..."
-  }
-}`
-                                },
-                                {
-                                    type: 'image_url',
-                                    image_url: {
-                                        url: `data:image/jpeg;base64,${base64Image}`,
-                                        detail: 'high'
-                                    }
-                                }
-                            ]
-                        }
-                    ],
+                    messages: messages,
                     max_tokens: 500,
                     temperature: 0.3
                 })
             });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('API Error:', errorData);
+                throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+            }
             
             const data = await response.json();
             
@@ -261,40 +271,97 @@ Format the response as JSON:
                 throw new Error(data.error.message);
             }
             
-            const content = data.choices[0].message.content;
-            const parsed = JSON.parse(content);
+            if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                console.error('Unexpected API response structure:', data);
+                throw new Error('Invalid API response structure');
+            }
+            
+            let content = data.choices[0].message.content;
+            
+            // Debug log
+            console.log('Raw API response:', content);
+            
+            // Clean up the response - remove markdown code blocks if present
+            content = content.trim();
+            if (content.startsWith('```json')) {
+                content = content.replace(/```json\s*/, '').replace(/```\s*$/, '');
+            } else if (content.startsWith('```')) {
+                content = content.replace(/```\s*/, '').replace(/```\s*$/, '');
+            }
+            
+            // Try to parse the JSON
+            let parsed;
+            try {
+                parsed = JSON.parse(content);
+            } catch (parseError) {
+                console.error('Failed to parse JSON:', content);
+                console.error('Parse error:', parseError);
+                // Try to extract any JSON from the response
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    try {
+                        parsed = JSON.parse(jsonMatch[0]);
+                    } catch (e) {
+                        throw new Error('Invalid response format from AI');
+                    }
+                } else {
+                    throw new Error('Invalid response format from AI');
+                }
+            }
             
             displayCardDetails(detailsContainer, parsed);
             
         } catch (error) {
             console.error('Error analyzing image:', error);
-            detailsContainer.innerHTML = `<div class="preview-error">Error: ${error.message}</div>`;
+            if (error.message.includes('Invalid response format')) {
+                detailsContainer.innerHTML = `<div class="preview-error">Error: Unable to parse AI response. Check console for details.</div>`;
+            } else if (error.message.includes('401')) {
+                detailsContainer.innerHTML = `<div class="preview-error">Error: Invalid API key. Please check your configuration.</div>`;
+            } else if (error.message.includes('429')) {
+                detailsContainer.innerHTML = `<div class="preview-error">Error: Rate limit exceeded. Please try again later.</div>`;
+            } else {
+                detailsContainer.innerHTML = `<div class="preview-error">Error: ${error.message}</div>`;
+            }
         }
     }
     
     // Display card details
     function displayCardDetails(container, data) {
+        if (!data || !data.details) {
+            container.innerHTML = '<div class="preview-error">Invalid data format</div>';
+            return;
+        }
+        
         const details = data.details;
         let html = '<div class="preview-details">';
         
         // Title
-        html += `<h5>${data.title}</h5>`;
+        if (data.title) {
+            html += `<h5>${data.title}</h5>`;
+        }
         
         // Details
-        if (details.brand) html += `<div class="detail-item"><strong>Brand:</strong> <span class="detail-value">${details.brand}</span></div>`;
-        if (details.year) html += `<div class="detail-item"><strong>Year:</strong> <span class="detail-value">${details.year}</span></div>`;
-        if (details.setName) html += `<div class="detail-item"><strong>Set:</strong> <span class="detail-value">${details.setName}</span></div>`;
-        if (details.cardNumber) html += `<div class="detail-item"><strong>Card #:</strong> <span class="detail-value">${details.cardNumber}</span></div>`;
-        if (details.playerName) html += `<div class="detail-item"><strong>Player:</strong> <span class="detail-value">${details.playerName}</span></div>`;
-        if (details.team) html += `<div class="detail-item"><strong>Team:</strong> <span class="detail-value">${details.team}</span></div>`;
-        if (details.features && details.features.length > 0) {
-            html += `<div class="detail-item"><strong>Features:</strong> <span class="detail-value">${details.features.join(', ')}</span></div>`;
+        if (details.brand && details.brand !== 'null') html += `<div class="detail-item"><strong>Brand:</strong> <span class="detail-value">${details.brand}</span></div>`;
+        if (details.year && details.year !== 'null') html += `<div class="detail-item"><strong>Year:</strong> <span class="detail-value">${details.year}</span></div>`;
+        if (details.setName && details.setName !== 'null') html += `<div class="detail-item"><strong>Set:</strong> <span class="detail-value">${details.setName}</span></div>`;
+        if (details.cardNumber && details.cardNumber !== 'null') html += `<div class="detail-item"><strong>Model/Card #:</strong> <span class="detail-value">${details.cardNumber}</span></div>`;
+        if (details.seriesNumber && details.seriesNumber !== 'null') html += `<div class="detail-item"><strong>Series:</strong> <span class="detail-value">${details.seriesNumber}</span></div>`;
+        if (details.playerName && details.playerName !== 'null') html += `<div class="detail-item"><strong>Name/Model:</strong> <span class="detail-value">${details.playerName}</span></div>`;
+        if (details.team && details.team !== 'null') html += `<div class="detail-item"><strong>Team:</strong> <span class="detail-value">${details.team}</span></div>`;
+        if (details.features && Array.isArray(details.features) && details.features.length > 0 && details.features[0] !== null) {
+            const validFeatures = details.features.filter(f => f && f !== 'null');
+            if (validFeatures.length > 0) {
+                html += `<div class="detail-item"><strong>Features:</strong> <span class="detail-value">${validFeatures.join(', ')}</span></div>`;
+            }
         }
-        if (details.condition) html += `<div class="detail-item"><strong>Condition:</strong> <span class="detail-value">${details.condition}</span></div>`;
-        if (details.otherInfo) html += `<div class="detail-item"><strong>Notes:</strong> <span class="detail-value">${details.otherInfo}</span></div>`;
+        if (details.condition && details.condition !== 'null') html += `<div class="detail-item"><strong>Condition:</strong> <span class="detail-value">${details.condition}</span></div>`;
+        if (details.otherInfo && details.otherInfo !== 'null') html += `<div class="detail-item"><strong>Notes:</strong> <span class="detail-value">${details.otherInfo}</span></div>`;
         
-        // Copy button
-        html += `<button class="copy-title-btn" onclick="copyTitle('${data.title.replace(/'/g, "\\'")}', this)">Copy Title</button>`;
+        // Copy button - only if we have a title
+        if (data.title) {
+            const escapedTitle = data.title.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+            html += `<button class="copy-title-btn" onclick="copyTitle('${escapedTitle}', this)">Copy Title</button>`;
+        }
         
         html += '</div>';
         container.innerHTML = html;
@@ -310,6 +377,51 @@ Format the response as JSON:
                 button.classList.remove('copied');
             }, 2000);
         });
+    };
+    
+    // Capture back of card
+    window.captureCardBack = function(photoIndex) {
+        const photo = recentPhotos.find(p => p.index === photoIndex);
+        if (!photo) return;
+        
+        // Flash effect
+        flashOverlay.classList.add('flash-animation');
+        setTimeout(() => flashOverlay.classList.remove('flash-animation'), 300);
+        
+        // Calculate crop dimensions
+        const scale = video.videoWidth / video.offsetWidth;
+        const cropSize = Math.floor(squareSize * scale);
+        const startX = Math.floor((video.videoWidth - cropSize) / 2);
+        const startY = Math.floor((video.videoHeight - cropSize) / 2);
+        
+        // Set canvas to 1500x1500 (eBay standard)
+        canvas.width = 1500;
+        canvas.height = 1500;
+        
+        // Draw cropped and scaled image directly
+        context.drawImage(
+            video,
+            startX, startY, cropSize, cropSize,  // Source
+            0, 0, 1500, 1500                      // Destination
+        );
+        
+        // Convert to blob
+        canvas.toBlob(async function(blob) {
+            // Convert to base64
+            const backBase64 = await blobToBase64(blob);
+            
+            // Store the back image
+            photo.backBase64 = backBase64;
+            photo.hasBack = true;
+            
+            // Update the UI
+            updatePreviews();
+            
+            // Re-analyze with both images
+            if (openaiApiKey) {
+                analyzeImage(photo.frontBase64, photo.backBase64, photo.index);
+            }
+        }, 'image/jpeg', 0.95);
     };
     
     // Capture photo - FAST VERSION
@@ -344,6 +456,9 @@ Format the response as JSON:
             // Download immediately
             downloadBlob(blob, filename);
             
+            // Convert front to base64 for API
+            const frontBase64 = await blobToBase64(blob);
+            
             // Add to previews
             const url = URL.createObjectURL(blob);
             const photoData = {
@@ -351,7 +466,10 @@ Format the response as JSON:
                 blob: blob,
                 timestamp: timestamp,
                 filename: filename,
-                index: Date.now() // Unique identifier
+                index: Date.now(), // Unique identifier
+                frontBase64: frontBase64,
+                hasBack: false,
+                backBase64: null
             };
             
             recentPhotos.unshift(photoData);
@@ -366,8 +484,7 @@ Format the response as JSON:
             
             // Analyze with OpenAI if API key is set
             if (openaiApiKey) {
-                const base64 = await blobToBase64(blob);
-                analyzeImage(base64, photoData.index);
+                analyzeImage(frontBase64, null, photoData.index);
             }
             
         }, 'image/jpeg', 0.95);
@@ -407,6 +524,31 @@ Format the response as JSON:
             
             card.appendChild(img);
             card.appendChild(info);
+            
+            // Add capture back button if API is connected
+            if (openaiApiKey) {
+                const backBtn = document.createElement('button');
+                backBtn.className = 'capture-back-btn' + (photo.hasBack ? ' has-back' : '');
+                backBtn.innerHTML = photo.hasBack 
+                    ? '✓ Back Captured' 
+                    : '📷 Capture Back/Package';
+                backBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if (!photo.hasBack) {
+                        window.captureCardBack(photo.index);
+                    }
+                };
+                backBtn.disabled = photo.hasBack;
+                
+                card.appendChild(backBtn);
+                
+                if (photo.hasBack) {
+                    const status = document.createElement('div');
+                    status.className = 'card-back-status';
+                    status.innerHTML = '✓ Both sides captured';
+                    card.appendChild(status);
+                }
+            }
             
             // Details container for API results
             if (openaiApiKey) {
