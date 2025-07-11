@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eBay Photo Studio</title>
+    <!-- Favicon to prevent 404 error -->
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAAPFBMVEUAAACAgIDAwMD///8AAADLy8v39/f8/Pz5+fnx8fH29vbz8/PV1dXj4+Ps7OzNzc3e3t7c3NzW1tbY2NinC7TjAAAAEHRSTlMA+/vn2NjYv7+/v39/f3/f39/f3wAAAK9JREFUeF6tlNkSwiAQRNcKIgoqKv7/n3V3bW2X9mYfth3f+0cC2H+BViR8KrhKkHACySQAQAY4pOAlAEACOCSAaQAAEgBIIACQAEACgIAAAJIASCAAkABAAgCAAAASAEgAABEACAAgAIAAAJIASCAAkABAAgCAAAASAEgAAJIASCAAkABAAgCAAAASAEgAABEACAAgAIAAAJIASCAAkABAAgCAAAASAEgAABEACAAgAIAAAJIASCAAkAD8Ay5DNaMYv3oAAAAASUVORK5CYII=">
+    <!-- Prebuilt Tailwind CSS to avoid CDN warning -->
+    <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.22.9/Babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/js-confetti@0.11.0/dist/js-confetti.browser.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             background-color: #111827;
@@ -111,6 +114,7 @@
                     };
                 } catch (err) {
                     console.error('Error accessing webcam:', err);
+                    alert('Failed to access webcam. Please check camera permissions or try another device.');
                 }
             };
 
@@ -291,7 +295,7 @@ Return ONLY this JSON structure with extracted information:
 
                     const data = await response.json();
                     let content = data.choices[0].message.content.trim();
-                    if (data.choices[0].message.content.startsWith('```json')) {
+                    if (content.startsWith('```json')) {
                         content = content.replace(/```json\s*/, '').replace(/```\s*$/, '');
                     }
                     const parsed = JSON.parse(content);
@@ -469,11 +473,12 @@ Return ONLY this JSON structure with extracted information:
                                             <div className="mt-2">
                                                 {photo.details === 'loading' ? (
                                                     <div className="flex justify-center items-center h-20">
-                                                        <div className="w-6 h-6 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+                                                        <div className="w-6 h-6 border-2 border-indigo/Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+500/20 border-t-indigo-500 rounded-full animate-spin"></div>
                                                     </div>
                                                 ) : photo.details?.error ? (
                                                     <div className="text-red-400 text-xs text-center bg-red-900/20 p-2 rounded">
-                                                        Error: {photo.details.error.includes('401') ? 'Invalid API key' : photo.details.error.includes('429') ? 'Rate limit exceeded' : photo.details.error}
+                                                        Error: {photo.details.error.includes('401') ? 'Invalid API key. Please verify your key in the Configure API settings.' : photo.details.error.includes('429') ? 'Rate limit exceeded. Please try again later.' : photo.details.error}
                                                     </div>
                                                 ) : photo.details ? (
                                                     <div className="text-sm bg-indigo-500/10 p-3 rounded">
@@ -506,7 +511,7 @@ Return ONLY this JSON structure with extracted information:
                         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
                             <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full">
                                 <h2 className="text-xl font-semibold mb-4">Welcome to eBay Photo Studio</h2>
-                                <p className="text-gray-400 mb-4">Enter your OpenAI API key to enable automatic eBay listing generation. Your key is stored locally and only sent to OpenAI.</p>
+                                <p className="text-gray-400 mb-4">Enter your OpenAI API key to enable automatic eBay listing generation. Your key is stored locally and only sent to OpenAI. Get your key from <a href="https://platform.openai.com/account/api-keys" target="_blank" className="text-indigo-400 hover:underline">OpenAI</a>.</p>
                                 <label className="block text-sm font-medium text-gray-300 mb-2">OpenAI API Key</label>
                                 <input
                                     id="apiKeyInput"
