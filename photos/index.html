@@ -5,11 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eBay Product Photo Studio</title>
     
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS with config for smaller bundle -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Configure Tailwind to reduce size
+        tailwind.config = {
+            corePlugins: {
+                preflight: true,
+                // Disable unused plugins
+                animation: true,
+                backdropBlur: true,
+                // Only what we use
+            }
+        }
+    </script>
     
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Preconnect for faster font loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
     
     <style>
         body { font-family: 'Space Grotesk', sans-serif; }
@@ -283,5 +297,16 @@
     </div>
     
     <script src="app.js"></script>
+    
+    <!-- Register Service Worker for caching -->
+    <script>
+        if ('serviceWorker' in navigator && location.protocol === 'https:') {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/photos/sw.js')
+                    .then(reg => console.log('Service Worker registered'))
+                    .catch(err => console.log('Service Worker registration failed'));
+            });
+        }
+    </script>
 </body>
 </html>

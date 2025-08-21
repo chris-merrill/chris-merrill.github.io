@@ -124,10 +124,20 @@ function init() {
                 option.value = device.deviceId;
                 option.text = device.label || `Camera ${index + 1}`;
                 cameraSelect.appendChild(option);
+                console.log(`Camera ${index}:`, device.label, device.deviceId);
             });
             
             if (videoDevices.length > 0) {
-                initWebcam(videoDevices[0].deviceId);
+                // Try OBSBOT first for 4K, then fall back to others
+                const obsbot = videoDevices.find(d => d.label && d.label.includes('OBSBOT Meet 2'));
+                const brio = videoDevices.find(d => d.label && d.label.includes('Logitech BRIO'));
+                
+                // Try cameras in order: OBSBOT (4K) -> BRIO (1080p) -> first available
+                const preferredCamera = obsbot || brio || videoDevices[0];
+                initWebcam(preferredCamera.deviceId);
+                
+                // Set the dropdown to match
+                cameraSelect.value = preferredCamera.deviceId;
             }
         } catch (err) {
             console.error('Error getting cameras:', err);
@@ -135,28 +145,57 @@ function init() {
         }
     }
     
-    // Initialize webcam
+    // Initialize webcam with optimized constraints
     async function initWebcam(deviceId) {
         try {
             if (currentStream) {
                 currentStream.getTracks().forEach(track => track.stop());
             }
             
-            const constraints = {
-                video: {
-                    deviceId: deviceId ? { exact: deviceId } : undefined,
-                    width: { ideal: 3840 },
-                    height: { ideal: 2160 }
-                }
-            };
+            // Try 4K first for better AI analysis
+            const resolutions = [
+                { width: { exact: 3840 }, height: { exact: 2160 } },  // Force 4K
+                { width: 3840, height: 2160 },                       // 4K preferred
+                { width: { min: 1920, ideal: 3840 }, height: { min: 1080, ideal: 2160 } },  // At least 1080p
+                { width: 1920, height: 1080 },                       // Fallback to 1080p
+                { width: { ideal: 1920 }, height: { ideal: 1080 } }  // Last resort
+            ];
             
-            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            let stream = null;
+            for (const res of resolutions) {
+                try {
+                    const constraints = {
+                        video: {
+                            deviceId: deviceId ? { exact: deviceId } : undefined,
+                            ...res
+                        }
+                    };
+                    console.log('Trying constraints:', constraints);
+                    stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    break; // Success, stop trying
+                } catch (err) {
+                    console.log('Failed with:', res, err.message);
+                    continue;
+                }
+            }
+            
+            if (!stream) {
+                throw new Error('Could not initialize camera with any resolution');
+            }
+            
+            currentStream = stream;
             video.srcObject = currentStream;
             
-            video.addEventListener('loadedmetadata', () => {
+            // Log what we actually got
+            const track = currentStream.getVideoTracks()[0];
+            const settings = track.getSettings();
+            console.log('Camera settings:', settings);
+            
+            // Remove any existing listeners first
+            video.onloadedmetadata = () => {
                 updateCropGuide();
                 updateResolutionDisplay();
-            });
+            };
         } catch (err) {
             console.error('Error accessing webcam:', err);
         }
@@ -206,19 +245,53 @@ function init() {
         setTimeout(() => URL.revokeObjectURL(url), 100);
     }
     
-    // Convert blob to base64
-    function blobToBase64(blob) {
+    // Convert blob to base64 with size optimization
+    function blobToBase64(blob, maxWidth = 1000) {
         return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result.split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
+            // If blob is small enough, convert directly
+            if (blob.size < 500000) { // Less than 500KB
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+            } else {
+                // For larger images, resize first
+                const img = new Image();
+                const url = URL.createObjectURL(blob);
+                img.onload = () => {
+                    const aspectRatio = img.height / img.width;
+                    const newWidth = Math.min(maxWidth, img.width);
+                    const newHeight = newWidth * aspectRatio;
+                    
+                    const resizeCanvas = document.createElement('canvas');
+                    resizeCanvas.width = newWidth;
+                    resizeCanvas.height = newHeight;
+                    const ctx = resizeCanvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                    
+                    resizeCanvas.toBlob((resizedBlob) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            URL.revokeObjectURL(url);
+                            resolve(reader.result.split(',')[1]);
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(resizedBlob);
+                    }, 'image/jpeg', 0.90);  // Balanced quality for AI analysis
+                };
+                img.onerror = reject;
+                img.src = url;
+            }
         });
     }
     
     // Analyze image with OpenAI
     async function analyzeImage(frontBase64, photoIndex) {
+        console.log('analyzeImage called with API key:', !!openaiApiKey);
         if (!openaiApiKey) return;
+        
+        // Find the photo data to store results
+        const photo = recentPhotos.find(p => p.index === photoIndex);
         
         const detailsContainer = document.getElementById(`details-${photoIndex}`);
         detailsContainer.innerHTML = `
@@ -240,15 +313,17 @@ function init() {
                             type: 'text',
                             text: `Analyze this product image and create JSON for eBay listing.
 
+IMPORTANT: Include the main COLOR of the product/car in the title.
 Return ONLY this JSON structure with extracted information:
 {
-  "title": "60-80 char eBay title with year brand product/player card#/model series# features",
+  "title": "60-80 char eBay title with year brand product/player card#/model COLOR series# features",
   "details": {
     "brand": "manufacturer name or null",
     "year": "year or null", 
     "setName": "set/series name or null",
     "cardNumber": "card/model number or null",
     "seriesNumber": "series like 5/5 or null",
+    "color": "main color of product or null",
     "playerName": "player/character/model name or null",
     "team": "team if applicable or null",
     "features": [],
@@ -275,7 +350,7 @@ Return ONLY this JSON structure with extracted information:
                     'Authorization': `Bearer ${openaiApiKey}`
                 },
                 body: JSON.stringify({
-                    model: 'gpt-4o-mini',
+                    model: 'gpt-4o-mini',  // Fastest and cheapest model
                     messages: messages,
                     max_tokens: 500,
                     temperature: 0.3
@@ -332,6 +407,11 @@ Return ONLY this JSON structure with extracted information:
                 }
             }
             
+            // Store the analysis data with the photo
+            if (photo) {
+                photo.analysisData = parsed;
+            }
+            
             displayCardDetails(detailsContainer, parsed);
             
         } catch (error) {
@@ -362,10 +442,13 @@ Return ONLY this JSON structure with extracted information:
         if (data.title) {
             html += `<h5 class="text-xs font-semibold text-emerald-400 mb-2 leading-relaxed">${data.title}</h5>`;
             // Auto-copy title to clipboard
+            console.log('Copying title to clipboard:', data.title);
             navigator.clipboard.writeText(data.title).then(() => {
-                showToast('Title Copied!', data.title);
+                console.log('Title copied successfully!');
+                showToast('Title Copied! ✅', data.title);
             }).catch(err => {
                 console.error('Failed to copy title:', err);
+                showToast('⚠️ Copy Failed', 'Please copy manually');
             });
         }
         
@@ -440,14 +523,16 @@ Return ONLY this JSON structure with extracted information:
             0, 0, 1500, 1500                    // Destination (1500x1500 output)
         );
         
-        // Convert to blob - 95% quality is plenty for eBay
+        // Convert to blob - 85% quality is optimal for eBay (smaller file, faster processing)
         canvas.toBlob(async function(blob) {
             const timestamp = Date.now();
             const date = new Date(timestamp);
             const filename = `ebay-${date.toISOString().split('T')[0]}-${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}.jpg`;
             
-            // Download immediately
-            downloadBlob(blob, filename);
+            // Download with requestAnimationFrame for better performance
+            requestAnimationFrame(() => {
+                downloadBlob(blob, filename);
+            });
             
             // Convert front to base64 for API
             const frontBase64 = await blobToBase64(blob);
@@ -460,14 +545,21 @@ Return ONLY this JSON structure with extracted information:
                 timestamp: timestamp,
                 filename: filename,
                 index: Date.now(), // Unique identifier
-                frontBase64: frontBase64
+                frontBase64: frontBase64,
+                analysisData: null // Will store AI analysis results
             };
             
             recentPhotos.unshift(photoData);
             
-            // Keep only the last 4 photos
+            // Keep only the last 4 photos and clean up memory
             if (recentPhotos.length > 4) {
-                URL.revokeObjectURL(recentPhotos[4].url);
+                // Clean up old photos to free memory
+                for (let i = 4; i < recentPhotos.length; i++) {
+                    URL.revokeObjectURL(recentPhotos[i].url);
+                    // Clear base64 data to free memory
+                    delete recentPhotos[i].frontBase64;
+                    delete recentPhotos[i].blob;
+                }
                 recentPhotos = recentPhotos.slice(0, 4);
             }
             
@@ -478,12 +570,13 @@ Return ONLY this JSON structure with extracted information:
                 analyzeImage(frontBase64, photoData.index);
             }
             
-        }, 'image/jpeg', 0.95);
+        }, 'image/jpeg', 0.92);
     }
     
-    // Update previews
+    // Update previews with performance optimization
     function updatePreviews() {
-        previewsContainer.innerHTML = '';
+        // Use DocumentFragment for better performance
+        const fragment = document.createDocumentFragment();
         
         recentPhotos.forEach(photo => {
             const card = document.createElement('div');
@@ -519,11 +612,20 @@ Return ONLY this JSON structure with extracted information:
                 detailsContainer.id = `details-${photo.index}`;
                 detailsContainer.addEventListener('click', (e) => e.stopPropagation());
                 card.appendChild(detailsContainer);
+                
+                // Restore analysis data if it exists
+                if (photo.analysisData) {
+                    displayCardDetails(detailsContainer, photo.analysisData);
+                }
             }
             
             
-            previewsContainer.appendChild(card);
+            fragment.appendChild(card);
         });
+        
+        // Clear and append all at once
+        previewsContainer.innerHTML = '';
+        previewsContainer.appendChild(fragment);
     }
     
     // Event listeners
@@ -531,14 +633,24 @@ Return ONLY this JSON structure with extracted information:
         if (this.value) initWebcam(this.value);
     });
     
-    // Spacebar to capture
+    // Spacebar to capture with debouncing
+    let captureInProgress = false;
     document.addEventListener('keydown', function(e) {
         if (e.code === 'Space' && e.target === document.body) {
             e.preventDefault();
-            // Shift+Space = capture with AI analysis (if API key exists)
-            // Space only = just capture, no analysis
+            
+            // Prevent multiple captures while processing
+            if (captureInProgress) return;
+            
+            captureInProgress = true;
             const performAnalysis = e.shiftKey && openaiApiKey;
+            console.log('Capture triggered - Shift:', e.shiftKey, 'API Key:', !!openaiApiKey, 'Analysis:', performAnalysis);
             capturePhoto(performAnalysis);
+            
+            // Reset flag after a short delay
+            setTimeout(() => {
+                captureInProgress = false;
+            }, 500);
         }
     });
     
