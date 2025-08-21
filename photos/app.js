@@ -23,6 +23,8 @@ function init() {
     const cameraSelect = document.getElementById('camera-select');
     const cameraSelectorContainer = document.getElementById('camera-selector-container');
     const cameraResolutionDisplay = document.getElementById('camera-resolution');
+    const cameraLoading = document.getElementById('cameraLoading');
+    const qualitySelect = document.getElementById('quality-select');
     
     // API Elements
     const apiModal = document.getElementById('apiKeyModal');
@@ -35,6 +37,14 @@ function init() {
     let squareSize = 0;
     let currentStream = null;
     let openaiApiKey = localStorage.getItem('openai_api_key') || '';
+    let imageWorker = null;
+    
+    // Initialize Web Worker for image processing
+    try {
+        imageWorker = new Worker('/photos/image-worker.js');
+    } catch (err) {
+        console.warn('Web Worker not available, falling back to main thread processing');
+    }
     
     // Initialize API status
     updateApiStatus();
@@ -145,6 +155,30 @@ function init() {
         }
     }
     
+    // Get quality preset settings
+    function getQualitySettings(preset) {
+        switch (preset) {
+            case 'fast':
+                return [
+                    { width: 1280, height: 720 },
+                    { width: { ideal: 1280 }, height: { ideal: 720 } }
+                ];
+            case 'quality':
+                return [
+                    { width: { exact: 3840 }, height: { exact: 2160 } },
+                    { width: 3840, height: 2160 },
+                    { width: { min: 1920, ideal: 3840 }, height: { min: 1080, ideal: 2160 } }
+                ];
+            case 'balanced':
+            default:
+                return [
+                    { width: 1920, height: 1080 },
+                    { width: { ideal: 1920 }, height: { ideal: 1080 } },
+                    { width: { min: 1280, ideal: 1920 }, height: { min: 720, ideal: 1080 } }
+                ];
+        }
+    }
+    
     // Initialize webcam with optimized constraints
     async function initWebcam(deviceId) {
         try {
@@ -152,14 +186,9 @@ function init() {
                 currentStream.getTracks().forEach(track => track.stop());
             }
             
-            // Try 4K first for better AI analysis
-            const resolutions = [
-                { width: { exact: 3840 }, height: { exact: 2160 } },  // Force 4K
-                { width: 3840, height: 2160 },                       // 4K preferred
-                { width: { min: 1920, ideal: 3840 }, height: { min: 1080, ideal: 2160 } },  // At least 1080p
-                { width: 1920, height: 1080 },                       // Fallback to 1080p
-                { width: { ideal: 1920 }, height: { ideal: 1080 } }  // Last resort
-            ];
+            // Get quality preset
+            const quality = qualitySelect ? qualitySelect.value : 'balanced';
+            const resolutions = getQualitySettings(quality);
             
             let stream = null;
             for (const res of resolutions) {
@@ -193,6 +222,10 @@ function init() {
             
             // Remove any existing listeners first
             video.onloadedmetadata = () => {
+                // Hide loading spinner
+                if (cameraLoading) {
+                    cameraLoading.style.display = 'none';
+                }
                 updateCropGuide();
                 updateResolutionDisplay();
             };
@@ -245,42 +278,79 @@ function init() {
         setTimeout(() => URL.revokeObjectURL(url), 100);
     }
     
+    // Batch download all photos
+    function downloadAllPhotos() {
+        if (recentPhotos.length === 0) {
+            showToast('No photos to download', 'Capture some photos first');
+            return;
+        }
+        
+        recentPhotos.forEach((photo, index) => {
+            if (photo.blob) {
+                // Stagger downloads slightly to avoid browser blocking
+                setTimeout(() => {
+                    downloadBlob(photo.blob, photo.filename);
+                }, index * 200);
+            }
+        });
+        
+        showToast('Downloading Photos', `Downloading ${recentPhotos.length} photo${recentPhotos.length > 1 ? 's' : ''}`);
+    }
+    
+    // Make downloadAllPhotos globally accessible
+    window.downloadAllPhotos = downloadAllPhotos;
+    
     // Convert blob to base64 with size optimization
     function blobToBase64(blob, maxWidth = 1000) {
         return new Promise((resolve, reject) => {
-            // If blob is small enough, convert directly
-            if (blob.size < 500000) { // Less than 500KB
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-            } else {
-                // For larger images, resize first
-                const img = new Image();
-                const url = URL.createObjectURL(blob);
-                img.onload = () => {
-                    const aspectRatio = img.height / img.width;
-                    const newWidth = Math.min(maxWidth, img.width);
-                    const newHeight = newWidth * aspectRatio;
-                    
-                    const resizeCanvas = document.createElement('canvas');
-                    resizeCanvas.width = newWidth;
-                    resizeCanvas.height = newHeight;
-                    const ctx = resizeCanvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, newWidth, newHeight);
-                    
-                    resizeCanvas.toBlob((resizedBlob) => {
-                        const reader = new FileReader();
-                        reader.onloadend = () => {
-                            URL.revokeObjectURL(url);
-                            resolve(reader.result.split(',')[1]);
-                        };
-                        reader.onerror = reject;
-                        reader.readAsDataURL(resizedBlob);
-                    }, 'image/jpeg', 0.90);  // Balanced quality for AI analysis
+            // Use Web Worker if available
+            if (imageWorker) {
+                const messageHandler = (e) => {
+                    imageWorker.removeEventListener('message', messageHandler);
+                    if (e.data.success) {
+                        resolve(e.data.base64);
+                    } else {
+                        reject(new Error(e.data.error));
+                    }
                 };
-                img.onerror = reject;
-                img.src = url;
+                imageWorker.addEventListener('message', messageHandler);
+                imageWorker.postMessage({ blob, maxWidth });
+            } else {
+                // Fallback to main thread processing
+                // If blob is small enough, convert directly
+                if (blob.size < 500000) { // Less than 500KB
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                } else {
+                    // For larger images, resize first
+                    const img = new Image();
+                    const url = URL.createObjectURL(blob);
+                    img.onload = () => {
+                        const aspectRatio = img.height / img.width;
+                        const newWidth = Math.min(maxWidth, img.width);
+                        const newHeight = newWidth * aspectRatio;
+                        
+                        const resizeCanvas = document.createElement('canvas');
+                        resizeCanvas.width = newWidth;
+                        resizeCanvas.height = newHeight;
+                        const ctx = resizeCanvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                        
+                        resizeCanvas.toBlob((resizedBlob) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                                URL.revokeObjectURL(url);
+                                resolve(reader.result.split(',')[1]);
+                            };
+                            reader.onerror = reject;
+                            reader.readAsDataURL(resizedBlob);
+                        }, 'image/jpeg', 0.90);  // Balanced quality for AI analysis
+                    };
+                    img.onerror = reject;
+                    img.src = url;
+                }
             }
         });
     }
@@ -412,7 +482,7 @@ Return ONLY this JSON structure with extracted information:
                 photo.analysisData = parsed;
             }
             
-            displayCardDetails(detailsContainer, parsed);
+            displayCardDetails(detailsContainer, parsed, photoIndex);
             
         } catch (error) {
             console.error('Error analyzing image:', error);
@@ -428,8 +498,95 @@ Return ONLY this JSON structure with extracted information:
         }
     }
     
+    // Delete a specific photo
+    function deletePhoto(photoIndex) {
+        const photo = recentPhotos.find(p => p.index === photoIndex);
+        if (photo) {
+            // Clean up resources
+            if (photo.url) URL.revokeObjectURL(photo.url);
+            delete photo.frontBase64;
+            delete photo.blob;
+            delete photo.analysisData;
+            
+            // Remove from array
+            recentPhotos = recentPhotos.filter(p => p.index !== photoIndex);
+            
+            // Update UI
+            updatePreviews();
+        }
+    }
+    
+    // Make deletePhoto globally accessible
+    window.deletePhoto = deletePhoto;
+    
+    // Toggle edit mode for title
+    function toggleEditTitle(photoIndex) {
+        const titleEl = document.getElementById(`title-${photoIndex}`);
+        const editBtn = document.getElementById(`edit-${photoIndex}`);
+        
+        if (!titleEl) return;
+        
+        const isEditing = titleEl.contentEditable === 'true';
+        
+        if (isEditing) {
+            // Save and exit edit mode
+            titleEl.contentEditable = 'false';
+            titleEl.classList.remove('bg-slate-800', 'px-2', 'py-1', 'rounded');
+            
+            // Update the stored data
+            const photo = recentPhotos.find(p => p.index === parseInt(photoIndex));
+            if (photo && photo.analysisData) {
+                photo.analysisData.title = titleEl.textContent.trim();
+            }
+            
+            // Update button icon to edit
+            editBtn.innerHTML = `
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                </svg>
+            `;
+        } else {
+            // Enter edit mode
+            titleEl.contentEditable = 'true';
+            titleEl.classList.add('bg-slate-800', 'px-2', 'py-1', 'rounded');
+            titleEl.focus();
+            
+            // Select all text
+            const range = document.createRange();
+            range.selectNodeContents(titleEl);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            
+            // Update button icon to save
+            editBtn.innerHTML = `
+                <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+            `;
+        }
+    }
+    
+    // Copy title to clipboard
+    function copyTitle(photoIndex) {
+        const titleEl = document.getElementById(`title-${photoIndex}`);
+        if (!titleEl) return;
+        
+        const title = titleEl.textContent.trim();
+        navigator.clipboard.writeText(title).then(() => {
+            showToast('Title Copied! ✅', title);
+        }).catch(err => {
+            console.error('Failed to copy title:', err);
+            showToast('⚠️ Copy Failed', 'Please copy manually');
+        });
+    }
+    
+    // Make functions globally accessible
+    window.toggleEditTitle = toggleEditTitle;
+    window.copyTitle = copyTitle;
+    
     // Display card details
-    function displayCardDetails(container, data) {
+    function displayCardDetails(container, data, photoIndex) {
         if (!data || !data.details) {
             container.innerHTML = '<div class="preview-error">Invalid data format</div>';
             return;
@@ -438,18 +595,29 @@ Return ONLY this JSON structure with extracted information:
         const details = data.details;
         let html = '<div class="p-3 bg-emerald-900/10 border-t border-emerald-800/30">';
         
-        // Title - auto-copy to clipboard
+        // Title with edit and copy buttons
         if (data.title) {
-            html += `<h5 class="text-xs font-semibold text-emerald-400 mb-2 leading-relaxed">${data.title}</h5>`;
-            // Auto-copy title to clipboard
-            console.log('Copying title to clipboard:', data.title);
-            navigator.clipboard.writeText(data.title).then(() => {
-                console.log('Title copied successfully!');
-                showToast('Title Copied! ✅', data.title);
-            }).catch(err => {
-                console.error('Failed to copy title:', err);
-                showToast('⚠️ Copy Failed', 'Please copy manually');
-            });
+            const titleId = `title-${photoIndex}`;
+            const editBtnId = `edit-${photoIndex}`;
+            const copyBtnId = `copy-${photoIndex}`;
+            
+            html += `
+                <div class="mb-2">
+                    <div class="flex items-start gap-2">
+                        <h5 id="${titleId}" class="text-xs font-semibold text-emerald-400 leading-relaxed flex-1" contenteditable="false">${data.title}</h5>
+                        <button id="${editBtnId}" onclick="toggleEditTitle('${photoIndex}')" class="p-1 hover:bg-slate-700 rounded transition-all" title="Edit title">
+                            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                            </svg>
+                        </button>
+                        <button id="${copyBtnId}" onclick="copyTitle('${photoIndex}')" class="p-1 hover:bg-slate-700 rounded transition-all" title="Copy to clipboard">
+                            <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `;
         }
         
         // Details with Tailwind styling
@@ -554,12 +722,14 @@ Return ONLY this JSON structure with extracted information:
             // Keep only the last 4 photos and clean up memory
             if (recentPhotos.length > 4) {
                 // Clean up old photos to free memory
-                for (let i = 4; i < recentPhotos.length; i++) {
-                    URL.revokeObjectURL(recentPhotos[i].url);
-                    // Clear base64 data to free memory
-                    delete recentPhotos[i].frontBase64;
-                    delete recentPhotos[i].blob;
-                }
+                const photosToRemove = recentPhotos.slice(4);
+                photosToRemove.forEach(photo => {
+                    if (photo.url) URL.revokeObjectURL(photo.url);
+                    // Clear all data to free memory
+                    delete photo.frontBase64;
+                    delete photo.blob;
+                    delete photo.analysisData;
+                });
                 recentPhotos = recentPhotos.slice(0, 4);
             }
             
@@ -580,7 +750,19 @@ Return ONLY this JSON structure with extracted information:
         
         recentPhotos.forEach(photo => {
             const card = document.createElement('div');
-            card.className = 'bg-slate-900/80 rounded-2xl overflow-hidden border border-slate-800 hover:border-emerald-500/50 transition-all hover:shadow-xl hover:shadow-emerald-500/10';
+            card.className = 'relative bg-slate-900/80 rounded-2xl overflow-hidden border border-slate-800 hover:border-emerald-500/50 transition-all hover:shadow-xl hover:shadow-emerald-500/10 group';
+            
+            // Add delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'absolute top-2 right-2 z-10 w-8 h-8 bg-red-500/80 hover:bg-red-500 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg';
+            deleteBtn.innerHTML = `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
+            deleteBtn.onclick = (e) => {
+                e.stopPropagation();
+                if (confirm('Delete this photo?')) {
+                    deletePhoto(photo.index);
+                }
+            };
+            card.appendChild(deleteBtn);
             
             const img = document.createElement('img');
             img.src = photo.url;
@@ -615,7 +797,7 @@ Return ONLY this JSON structure with extracted information:
                 
                 // Restore analysis data if it exists
                 if (photo.analysisData) {
-                    displayCardDetails(detailsContainer, photo.analysisData);
+                    displayCardDetails(detailsContainer, photo.analysisData, photo.index);
                 }
             }
             
@@ -632,6 +814,21 @@ Return ONLY this JSON structure with extracted information:
     cameraSelect.addEventListener('change', function() {
         if (this.value) initWebcam(this.value);
     });
+    
+    // Quality preset change
+    if (qualitySelect) {
+        qualitySelect.addEventListener('change', function() {
+            // Reinitialize camera with new quality setting
+            const currentDevice = cameraSelect.value || (currentStream ? currentStream.getVideoTracks()[0].getSettings().deviceId : null);
+            if (currentDevice) {
+                // Show loading state
+                if (cameraLoading) {
+                    cameraLoading.style.display = 'flex';
+                }
+                initWebcam(currentDevice);
+            }
+        });
+    }
     
     // Spacebar to capture with debouncing
     let captureInProgress = false;
