@@ -764,6 +764,28 @@ Return ONLY this JSON structure with extracted information:
             };
             card.appendChild(deleteBtn);
             
+            // Add AI analysis button (only if API key is configured)
+            if (openaiApiKey) {
+                const analyzeBtn = document.createElement('button');
+                analyzeBtn.className = 'absolute top-2 left-2 z-10 w-8 h-8 bg-emerald-500/80 hover:bg-emerald-500 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg';
+                analyzeBtn.title = 'Run AI Analysis';
+                analyzeBtn.innerHTML = `<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>`;
+                analyzeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    // Re-run analysis
+                    if (photo.frontBase64) {
+                        analyzeImage(photo.frontBase64, photo.index);
+                    } else if (photo.blob) {
+                        // Convert blob to base64 if needed
+                        blobToBase64(photo.blob).then(base64 => {
+                            photo.frontBase64 = base64;
+                            analyzeImage(base64, photo.index);
+                        });
+                    }
+                };
+                card.appendChild(analyzeBtn);
+            }
+            
             const img = document.createElement('img');
             img.src = photo.url;
             img.className = 'w-full aspect-square object-cover';
