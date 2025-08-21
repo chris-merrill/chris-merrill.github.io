@@ -17,6 +17,9 @@
 <body>
     <div class="flash-overlay" id="flash"></div>
     
+    <!-- Toast Notification -->
+    <div class="toast-container" id="toastContainer"></div>
+    
     <!-- OpenAI API Key Modal -->
     <div class="modal fade" id="apiKeyModal" tabindex="-1">
         <div class="modal-dialog">
@@ -44,43 +47,50 @@
         </div>
     </div>
     
-    <div class="container main-container">
-        <div class="text-center">
-            <h1>Product Photo Studio</h1>
-            <p class="subtitle">Professional square photos for your eBay listings</p>
-            
-            <!-- API Key Status -->
-            <div class="api-status">
+    <!-- Top Header Bar -->
+    <div class="header-bar">
+        <div class="header-content">
+            <div class="header-left">
+                <h1>Product Photo Studio</h1>
+            </div>
+            <div class="header-center">
+                <div class="camera-selector" id="camera-selector-container" style="display: none;">
+                    <select id="camera-select" class="camera-dropdown">
+                        <option value="">Loading cameras...</option>
+                    </select>
+                    <span class="resolution-display" id="camera-resolution"></span>
+                </div>
+            </div>
+            <div class="header-right">
                 <span id="apiStatus" class="api-status-indicator"></span>
                 <button class="btn btn-sm btn-outline-primary" id="configureApi">Configure API</button>
             </div>
-            
-            <!-- Camera selector -->
-            <div class="camera-selector" id="camera-selector-container" style="display: none;">
-                <label for="camera-select">Camera:</label>
-                <select id="camera-select" class="camera-dropdown">
-                    <option value="">Loading cameras...</option>
-                </select>
-                <span class="resolution-display" id="camera-resolution"></span>
-            </div>
-            
+        </div>
+    </div>
+    
+    <!-- Main Content Area -->
+    <div class="main-content">
+        <!-- Left Side - Video -->
+        <div class="video-section">
             <div id="video-container">
                 <div class="video-wrapper">
                     <video id="video" autoplay playsinline></video>
                     <div class="crop-guide" id="cropGuide">
-                        <div class="guide-label">Square Crop Area</div>
+                        <div class="guide-label">Square Crop</div>
                     </div>
                 </div>
             </div>
-            
             <canvas id="canvas"></canvas>
-            
-            <div class="preview-section">
+        </div>
+        
+        <!-- Right Side - Captures -->
+        <div class="captures-section">
+            <div class="captures-header">
                 <h3>Recent Captures</h3>
-                <p>Click any image to download • Space = capture • Shift+Space = capture with AI analysis</p>
-                <div id="previews" class="row g-3">
-                    <!-- Preview images will be inserted here -->
-                </div>
+                <div class="captures-help">Space = capture • Shift+Space = AI analysis</div>
+            </div>
+            <div id="previews" class="captures-grid">
+                <!-- Preview images will be inserted here -->
             </div>
         </div>
     </div>

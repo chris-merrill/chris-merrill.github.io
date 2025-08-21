@@ -37,10 +37,32 @@ function init() {
     let squareSize = 0;
     let currentStream = null;
     let openaiApiKey = localStorage.getItem('openai_api_key') || '';
-    let pendingBackCapture = null; // Track which photo is waiting for back capture
     
     // Initialize API status
     updateApiStatus();
+    
+    // Toast notification function
+    function showToast(title, subtitle) {
+        const toastContainer = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = 'toast toast-success';
+        
+        toast.innerHTML = `
+            <span class="toast-icon">✅</span>
+            <div class="toast-message">
+                <div class="toast-title">${title}</div>
+                ${subtitle ? `<div class="toast-subtitle">${subtitle}</div>` : ''}
+            </div>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Auto-remove after 4 seconds
+        setTimeout(() => {
+            toast.style.animation = 'fadeOut 0.3s ease-out';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+    }
     
     // API Configuration
     function updateApiStatus() {
@@ -151,6 +173,9 @@ function init() {
         
         cropGuide.style.width = squareSize + 'px';
         cropGuide.style.height = squareSize + 'px';
+        cropGuide.style.top = '50%';
+        cropGuide.style.left = '50%';
+        cropGuide.style.transform = 'translate(-50%, -50%)';
     }
     
     // Format time
@@ -186,7 +211,7 @@ function init() {
     }
     
     // Analyze image with OpenAI
-    async function analyzeImage(frontBase64, backBase64, photoIndex) {
+    async function analyzeImage(frontBase64, photoIndex) {
         if (!openaiApiKey) return;
         
         const detailsContainer = document.getElementById(`details-${photoIndex}`);
@@ -203,18 +228,17 @@ function init() {
                     content: [
                         {
                             type: 'text',
-                            text: `Analyze these ${backBase64 ? 'product' : 'card/product'} images (front${backBase64 ? ' and back' : ''}) and create JSON for eBay listing.
-${backBase64 ? 'IMPORTANT: Extract the series number (like 5/5) from the packaging if visible - this is crucial for the title.' : ''}
+                            text: `Analyze this product image and create JSON for eBay listing.
 
 Return ONLY this JSON structure with extracted information:
 {
-  "title": "60-80 char eBay title with year brand product/player card#/model ${backBase64 ? 'series# ' : ''}features",
+  "title": "60-80 char eBay title with year brand product/player card#/model series# features",
   "details": {
     "brand": "manufacturer name or null",
     "year": "year or null", 
     "setName": "set/series name or null",
     "cardNumber": "card/model number or null",
-    "seriesNumber": "${backBase64 ? 'series like 5/5 or null' : 'null'}",
+    "seriesNumber": "series like 5/5 or null",
     "playerName": "player/character/model name or null",
     "team": "team if applicable or null",
     "features": [],
@@ -233,17 +257,6 @@ Return ONLY this JSON structure with extracted information:
                     ]
                 }
             ];
-            
-            // Add back image if provided
-            if (backBase64) {
-                messages[1].content.push({
-                    type: 'image_url',
-                    image_url: {
-                        url: `data:image/jpeg;base64,${backBase64}`,
-                        detail: 'high'
-                    }
-                });
-            }
             
             const response = await fetch('https://api.openai.com/v1/chat/completions', {
                 method: 'POST',
@@ -335,9 +348,15 @@ Return ONLY this JSON structure with extracted information:
         const details = data.details;
         let html = '<div class="preview-details">';
         
-        // Title
+        // Title - auto-copy to clipboard
         if (data.title) {
             html += `<h5>${data.title}</h5>`;
+            // Auto-copy title to clipboard
+            navigator.clipboard.writeText(data.title).then(() => {
+                showToast('Title Copied!', data.title);
+            }).catch(err => {
+                console.error('Failed to copy title:', err);
+            });
         }
         
         // Details
@@ -357,72 +376,11 @@ Return ONLY this JSON structure with extracted information:
         if (details.condition && details.condition !== 'null') html += `<div class="detail-item"><strong>Condition:</strong> <span class="detail-value">${details.condition}</span></div>`;
         if (details.otherInfo && details.otherInfo !== 'null') html += `<div class="detail-item"><strong>Notes:</strong> <span class="detail-value">${details.otherInfo}</span></div>`;
         
-        // Copy button - only if we have a title
-        if (data.title) {
-            const escapedTitle = data.title.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
-            html += `<button class="copy-title-btn" onclick="copyTitle('${escapedTitle}', this)">Copy Title</button>`;
-        }
-        
         html += '</div>';
         container.innerHTML = html;
     }
     
-    // Copy title function
-    window.copyTitle = function(title, button) {
-        navigator.clipboard.writeText(title).then(() => {
-            button.textContent = 'Copied!';
-            button.classList.add('copied');
-            setTimeout(() => {
-                button.textContent = 'Copy Title';
-                button.classList.remove('copied');
-            }, 2000);
-        });
-    };
     
-    // Capture back of card
-    window.captureCardBack = function(photoIndex) {
-        const photo = recentPhotos.find(p => p.index === photoIndex);
-        if (!photo) return;
-        
-        // Flash effect
-        flashOverlay.classList.add('flash-animation');
-        setTimeout(() => flashOverlay.classList.remove('flash-animation'), 300);
-        
-        // Calculate crop dimensions
-        const scale = video.videoWidth / video.offsetWidth;
-        const cropSize = Math.floor(squareSize * scale);
-        const startX = Math.floor((video.videoWidth - cropSize) / 2);
-        const startY = Math.floor((video.videoHeight - cropSize) / 2);
-        
-        // Set canvas to 1500x1500 (eBay standard)
-        canvas.width = 1500;
-        canvas.height = 1500;
-        
-        // Draw cropped and scaled image directly
-        context.drawImage(
-            video,
-            startX, startY, cropSize, cropSize,  // Source
-            0, 0, 1500, 1500                      // Destination
-        );
-        
-        // Convert to blob
-        canvas.toBlob(async function(blob) {
-            // Convert to base64
-            const backBase64 = await blobToBase64(blob);
-            
-            // Store the back image
-            photo.backBase64 = backBase64;
-            photo.hasBack = true;
-            
-            // Update the UI
-            updatePreviews();
-            
-            // Re-analyze with both images
-            if (openaiApiKey) {
-                analyzeImage(photo.frontBase64, photo.backBase64, photo.index);
-            }
-        }, 'image/jpeg', 0.95);
-    };
     
     // Capture photo - FAST VERSION
     function capturePhoto(performAnalysis = true) {
@@ -430,11 +388,25 @@ Return ONLY this JSON structure with extracted information:
         flashOverlay.classList.add('flash-animation');
         setTimeout(() => flashOverlay.classList.remove('flash-animation'), 300);
         
-        // Calculate crop dimensions
-        const scale = video.videoWidth / video.offsetWidth;
-        const cropSize = Math.floor(squareSize * scale);
-        const startX = Math.floor((video.videoWidth - cropSize) / 2);
-        const startY = Math.floor((video.videoHeight - cropSize) / 2);
+        // Simple approach: The crop guide is 80% of min dimension and centered
+        // We just need to crop the same percentage from the center of the actual video
+        
+        const videoWidth = video.videoWidth;
+        const videoHeight = video.videoHeight;
+        
+        // Calculate the size of the square crop (80% of the smaller video dimension)
+        const cropPercent = 0.8;
+        const cropSize = Math.floor(Math.min(videoWidth, videoHeight) * cropPercent);
+        
+        // Center the crop
+        const cropX = Math.floor((videoWidth - cropSize) / 2);
+        const cropY = Math.floor((videoHeight - cropSize) / 2);
+        
+        console.log('Crop info:', {
+            video: `${videoWidth}x${videoHeight}`,
+            cropSize: cropSize,
+            cropPos: `${cropX},${cropY}`
+        });
         
         // Set canvas to 1500x1500 (eBay standard)
         canvas.width = 1500;
@@ -443,8 +415,8 @@ Return ONLY this JSON structure with extracted information:
         // Draw cropped and scaled image directly
         context.drawImage(
             video,
-            startX, startY, cropSize, cropSize,  // Source
-            0, 0, 1500, 1500                      // Destination
+            cropX, cropY, cropSize, cropSize,  // Source (80% square from center)
+            0, 0, 1500, 1500                    // Destination (1500x1500 output)
         );
         
         // Convert to blob - 95% quality is plenty for eBay
@@ -467,9 +439,7 @@ Return ONLY this JSON structure with extracted information:
                 timestamp: timestamp,
                 filename: filename,
                 index: Date.now(), // Unique identifier
-                frontBase64: frontBase64,
-                hasBack: false,
-                backBase64: null
+                frontBase64: frontBase64
             };
             
             recentPhotos.unshift(photoData);
@@ -484,7 +454,7 @@ Return ONLY this JSON structure with extracted information:
             
             // Analyze with OpenAI if API key is set AND analysis is requested
             if (openaiApiKey && performAnalysis) {
-                analyzeImage(frontBase64, null, photoData.index);
+                analyzeImage(frontBase64, photoData.index);
             }
             
         }, 'image/jpeg', 0.95);
@@ -495,9 +465,6 @@ Return ONLY this JSON structure with extracted information:
         previewsContainer.innerHTML = '';
         
         recentPhotos.forEach(photo => {
-            const col = document.createElement('div');
-            col.className = 'col-md-3';
-            
             const card = document.createElement('div');
             card.className = 'preview-card' + (openaiApiKey ? ' has-details' : '');
             
@@ -525,31 +492,6 @@ Return ONLY this JSON structure with extracted information:
             card.appendChild(img);
             card.appendChild(info);
             
-            // Add capture back button if API is connected
-            if (openaiApiKey) {
-                const backBtn = document.createElement('button');
-                backBtn.className = 'capture-back-btn' + (photo.hasBack ? ' has-back' : '');
-                backBtn.innerHTML = photo.hasBack 
-                    ? '✓ Back Captured' 
-                    : '📷 Capture Back/Package';
-                backBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (!photo.hasBack) {
-                        window.captureCardBack(photo.index);
-                    }
-                };
-                backBtn.disabled = photo.hasBack;
-                
-                card.appendChild(backBtn);
-                
-                if (photo.hasBack) {
-                    const status = document.createElement('div');
-                    status.className = 'card-back-status';
-                    status.innerHTML = '✓ Both sides captured';
-                    card.appendChild(status);
-                }
-            }
-            
             // Details container for API results
             if (openaiApiKey) {
                 const detailsContainer = document.createElement('div');
@@ -558,15 +500,8 @@ Return ONLY this JSON structure with extracted information:
                 card.appendChild(detailsContainer);
             }
             
-            // Click to download
-            card.addEventListener('click', (e) => {
-                // Don't download if clicking on copy button
-                if (e.target.classList.contains('copy-title-btn')) return;
-                downloadBlob(photo.blob, photo.filename);
-            });
             
-            col.appendChild(card);
-            previewsContainer.appendChild(col);
+            previewsContainer.appendChild(card);
         });
     }
     
