@@ -39,6 +39,10 @@ function init() {
     let openaiApiKey = localStorage.getItem('openai_api_key') || '';
     let imageWorker = null;
     
+    // Load saved preferences
+    let savedCameraId = localStorage.getItem('preferred_camera') || '';
+    let savedQuality = localStorage.getItem('preferred_quality') || 'balanced';
+    
     // Initialize Web Worker for image processing
     try {
         imageWorker = new Worker('/photos/image-worker.js');
@@ -48,6 +52,11 @@ function init() {
     
     // Initialize API status
     updateApiStatus();
+    
+    // Set saved quality preference
+    if (qualitySelect && savedQuality) {
+        qualitySelect.value = savedQuality;
+    }
     
     // Toast notification function
     function showToast(title, subtitle) {
@@ -138,12 +147,21 @@ function init() {
             });
             
             if (videoDevices.length > 0) {
-                // Try OBSBOT first for 4K, then fall back to others
-                const obsbot = videoDevices.find(d => d.label && d.label.includes('OBSBOT Meet 2'));
-                const brio = videoDevices.find(d => d.label && d.label.includes('Logitech BRIO'));
+                let preferredCamera;
                 
-                // Try cameras in order: OBSBOT (4K) -> BRIO (1080p) -> first available
-                const preferredCamera = obsbot || brio || videoDevices[0];
+                // First check if we have a saved camera preference
+                if (savedCameraId) {
+                    preferredCamera = videoDevices.find(d => d.deviceId === savedCameraId);
+                }
+                
+                // If no saved preference or saved camera not found, use defaults
+                if (!preferredCamera) {
+                    // Try OBSBOT first for 4K, then fall back to others
+                    const obsbot = videoDevices.find(d => d.label && d.label.includes('OBSBOT Meet 2'));
+                    const brio = videoDevices.find(d => d.label && d.label.includes('Logitech BRIO'));
+                    preferredCamera = obsbot || brio || videoDevices[0];
+                }
+                
                 initWebcam(preferredCamera.deviceId);
                 
                 // Set the dropdown to match
@@ -186,8 +204,8 @@ function init() {
                 currentStream.getTracks().forEach(track => track.stop());
             }
             
-            // Get quality preset
-            const quality = qualitySelect ? qualitySelect.value : 'balanced';
+            // Get quality preset (use saved preference or current selection)
+            const quality = qualitySelect ? qualitySelect.value : savedQuality;
             const resolutions = getQualitySettings(quality);
             
             let stream = null;
@@ -219,6 +237,11 @@ function init() {
             const track = currentStream.getVideoTracks()[0];
             const settings = track.getSettings();
             console.log('Camera settings:', settings);
+            
+            // Save the successfully initialized camera
+            if (deviceId) {
+                localStorage.setItem('preferred_camera', deviceId);
+            }
             
             // Remove any existing listeners first
             video.onloadedmetadata = () => {
@@ -834,12 +857,19 @@ Return ONLY this JSON structure with extracted information:
     
     // Event listeners
     cameraSelect.addEventListener('change', function() {
-        if (this.value) initWebcam(this.value);
+        if (this.value) {
+            // Save camera preference
+            localStorage.setItem('preferred_camera', this.value);
+            initWebcam(this.value);
+        }
     });
     
     // Quality preset change
     if (qualitySelect) {
         qualitySelect.addEventListener('change', function() {
+            // Save quality preference
+            localStorage.setItem('preferred_quality', this.value);
+            
             // Reinitialize camera with new quality setting
             const currentDevice = cameraSelect.value || (currentStream ? currentStream.getVideoTracks()[0].getSettings().deviceId : null);
             if (currentDevice) {
