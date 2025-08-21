@@ -425,7 +425,7 @@ Return ONLY this JSON structure with extracted information:
     };
     
     // Capture photo - FAST VERSION
-    function capturePhoto() {
+    function capturePhoto(performAnalysis = true) {
         // Flash effect
         flashOverlay.classList.add('flash-animation');
         setTimeout(() => flashOverlay.classList.remove('flash-animation'), 300);
@@ -482,8 +482,8 @@ Return ONLY this JSON structure with extracted information:
             
             updatePreviews();
             
-            // Analyze with OpenAI if API key is set
-            if (openaiApiKey) {
+            // Analyze with OpenAI if API key is set AND analysis is requested
+            if (openaiApiKey && performAnalysis) {
                 analyzeImage(frontBase64, null, photoData.index);
             }
             
@@ -579,7 +579,10 @@ Return ONLY this JSON structure with extracted information:
     document.addEventListener('keydown', function(e) {
         if (e.code === 'Space' && e.target === document.body) {
             e.preventDefault();
-            capturePhoto();
+            // Shift+Space = capture with AI analysis (if API key exists)
+            // Space only = just capture, no analysis
+            const performAnalysis = e.shiftKey && openaiApiKey;
+            capturePhoto(performAnalysis);
         }
     });
     
