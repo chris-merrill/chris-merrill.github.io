@@ -25,10 +25,8 @@ function init() {
     const cameraResolutionDisplay = document.getElementById('camera-resolution');
     
     // API Elements
-    const apiModal = new bootstrap.Modal(document.getElementById('apiKeyModal'));
+    const apiModal = document.getElementById('apiKeyModal');
     const apiKeyInput = document.getElementById('apiKeyInput');
-    const saveApiKeyBtn = document.getElementById('saveApiKey');
-    const clearApiKeyBtn = document.getElementById('clearApiKey');
     const configureApiBtn = document.getElementById('configureApi');
     const apiStatus = document.getElementById('apiStatus');
     
@@ -45,13 +43,13 @@ function init() {
     function showToast(title, subtitle) {
         const toastContainer = document.getElementById('toastContainer');
         const toast = document.createElement('div');
-        toast.className = 'toast toast-success';
+        toast.className = 'toast-enter flex items-center gap-3 bg-gray-800 border-l-4 border-green-500 rounded-lg p-4 shadow-xl max-w-md';
         
         toast.innerHTML = `
-            <span class="toast-icon">✅</span>
-            <div class="toast-message">
-                <div class="toast-title">${title}</div>
-                ${subtitle ? `<div class="toast-subtitle">${subtitle}</div>` : ''}
+            <span class="text-2xl">✅</span>
+            <div class="flex-1">
+                <div class="font-semibold text-green-400">${title}</div>
+                ${subtitle ? `<div class="text-sm text-gray-300 mt-1">${subtitle}</div>` : ''}
             </div>
         `;
         
@@ -59,7 +57,8 @@ function init() {
         
         // Auto-remove after 4 seconds
         setTimeout(() => {
-            toast.style.animation = 'fadeOut 0.3s ease-out';
+            toast.classList.remove('toast-enter');
+            toast.classList.add('toast-exit');
             setTimeout(() => toast.remove(), 300);
         }, 4000);
     }
@@ -67,38 +66,45 @@ function init() {
     // API Configuration
     function updateApiStatus() {
         if (openaiApiKey) {
-            apiStatus.className = 'api-status-indicator connected';
-            apiStatus.textContent = 'API Connected';
+            apiStatus.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-green-900/30 text-green-400';
+            apiStatus.innerHTML = '<span class="w-2 h-2 bg-green-400 rounded-full"></span>API Connected';
         } else {
-            apiStatus.className = 'api-status-indicator disconnected';
-            apiStatus.textContent = 'API Not Connected';
+            apiStatus.className = 'flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm bg-red-900/30 text-red-400';
+            apiStatus.innerHTML = '<span class="w-2 h-2 bg-red-400 rounded-full"></span>API Not Connected';
         }
     }
     
-    configureApiBtn.addEventListener('click', () => {
+    // Modal functions
+    window.openModal = function() {
         apiKeyInput.value = openaiApiKey;
-        apiModal.show();
-    });
+        apiModal.classList.remove('hidden');
+    }
     
-    saveApiKeyBtn.addEventListener('click', () => {
+    window.closeModal = function() {
+        apiModal.classList.add('hidden');
+    }
+    
+    window.saveApiKey = function() {
         const key = apiKeyInput.value.trim();
         if (key) {
             localStorage.setItem('openai_api_key', key);
             openaiApiKey = key;
             updateApiStatus();
-            apiModal.hide();
+            closeModal();
         }
-    });
+    }
     
-    clearApiKeyBtn.addEventListener('click', () => {
+    window.clearApiKey = function() {
         if (confirm('Are you sure you want to clear the API key?')) {
             localStorage.removeItem('openai_api_key');
             openaiApiKey = '';
             apiKeyInput.value = '';
             updateApiStatus();
-            apiModal.hide();
+            closeModal();
         }
-    });
+    }
+    
+    configureApiBtn.addEventListener('click', openModal);
     
     // Get available cameras
     async function getCameras() {
@@ -110,7 +116,7 @@ function init() {
             cameraSelect.innerHTML = '';
             
             if (videoDevices.length > 1) {
-                cameraSelectorContainer.style.display = 'block';
+                cameraSelectorContainer.classList.remove('hidden');
             }
             
             videoDevices.forEach((device, index) => {
@@ -215,7 +221,11 @@ function init() {
         if (!openaiApiKey) return;
         
         const detailsContainer = document.getElementById(`details-${photoIndex}`);
-        detailsContainer.innerHTML = '<div class="preview-details loading"><div class="loading-spinner"></div></div>';
+        detailsContainer.innerHTML = `
+            <div class="p-3 flex justify-center items-center">
+                <div class="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        `;
         
         try {
             const                 messages = [
@@ -327,13 +337,13 @@ Return ONLY this JSON structure with extracted information:
         } catch (error) {
             console.error('Error analyzing image:', error);
             if (error.message.includes('Invalid response format')) {
-                detailsContainer.innerHTML = `<div class="preview-error">Error: Unable to parse AI response. Check console for details.</div>`;
+                detailsContainer.innerHTML = `<div class="p-3 text-red-400 text-xs text-center">Error: Unable to parse AI response</div>`;
             } else if (error.message.includes('401')) {
-                detailsContainer.innerHTML = `<div class="preview-error">Error: Invalid API key. Please check your configuration.</div>`;
+                detailsContainer.innerHTML = `<div class="p-3 text-red-400 text-xs text-center">Error: Invalid API key</div>`;
             } else if (error.message.includes('429')) {
-                detailsContainer.innerHTML = `<div class="preview-error">Error: Rate limit exceeded. Please try again later.</div>`;
+                detailsContainer.innerHTML = `<div class="p-3 text-red-400 text-xs text-center">Error: Rate limit exceeded</div>`;
             } else {
-                detailsContainer.innerHTML = `<div class="preview-error">Error: ${error.message}</div>`;
+                detailsContainer.innerHTML = `<div class="p-3 text-red-400 text-xs text-center">Error: ${error.message}</div>`;
             }
         }
     }
@@ -346,11 +356,11 @@ Return ONLY this JSON structure with extracted information:
         }
         
         const details = data.details;
-        let html = '<div class="preview-details">';
+        let html = '<div class="p-3 bg-emerald-900/10 border-t border-emerald-800/30">';
         
         // Title - auto-copy to clipboard
         if (data.title) {
-            html += `<h5>${data.title}</h5>`;
+            html += `<h5 class="text-xs font-semibold text-emerald-400 mb-2 leading-relaxed">${data.title}</h5>`;
             // Auto-copy title to clipboard
             navigator.clipboard.writeText(data.title).then(() => {
                 showToast('Title Copied!', data.title);
@@ -359,22 +369,33 @@ Return ONLY this JSON structure with extracted information:
             });
         }
         
-        // Details
-        if (details.brand && details.brand !== 'null') html += `<div class="detail-item"><strong>Brand:</strong> <span class="detail-value">${details.brand}</span></div>`;
-        if (details.year && details.year !== 'null') html += `<div class="detail-item"><strong>Year:</strong> <span class="detail-value">${details.year}</span></div>`;
-        if (details.setName && details.setName !== 'null') html += `<div class="detail-item"><strong>Set:</strong> <span class="detail-value">${details.setName}</span></div>`;
-        if (details.cardNumber && details.cardNumber !== 'null') html += `<div class="detail-item"><strong>Model/Card #:</strong> <span class="detail-value">${details.cardNumber}</span></div>`;
-        if (details.seriesNumber && details.seriesNumber !== 'null') html += `<div class="detail-item"><strong>Series:</strong> <span class="detail-value">${details.seriesNumber}</span></div>`;
-        if (details.playerName && details.playerName !== 'null') html += `<div class="detail-item"><strong>Name/Model:</strong> <span class="detail-value">${details.playerName}</span></div>`;
-        if (details.team && details.team !== 'null') html += `<div class="detail-item"><strong>Team:</strong> <span class="detail-value">${details.team}</span></div>`;
+        // Details with Tailwind styling
+        const addDetail = (label, value) => {
+            if (value && value !== 'null') {
+                html += `<div class="flex gap-2 text-xs mb-1">
+                    <span class="text-slate-500 font-medium">${label}:</span>
+                    <span class="text-slate-400">${value}</span>
+                </div>`;
+            }
+        };
+        
+        addDetail('Brand', details.brand);
+        addDetail('Year', details.year);
+        addDetail('Set', details.setName);
+        addDetail('Model/Card #', details.cardNumber);
+        addDetail('Series', details.seriesNumber);
+        addDetail('Name/Model', details.playerName);
+        addDetail('Team', details.team);
+        
         if (details.features && Array.isArray(details.features) && details.features.length > 0 && details.features[0] !== null) {
             const validFeatures = details.features.filter(f => f && f !== 'null');
             if (validFeatures.length > 0) {
-                html += `<div class="detail-item"><strong>Features:</strong> <span class="detail-value">${validFeatures.join(', ')}</span></div>`;
+                addDetail('Features', validFeatures.join(', '));
             }
         }
-        if (details.condition && details.condition !== 'null') html += `<div class="detail-item"><strong>Condition:</strong> <span class="detail-value">${details.condition}</span></div>`;
-        if (details.otherInfo && details.otherInfo !== 'null') html += `<div class="detail-item"><strong>Notes:</strong> <span class="detail-value">${details.otherInfo}</span></div>`;
+        
+        addDetail('Condition', details.condition);
+        addDetail('Notes', details.otherInfo);
         
         html += '</div>';
         container.innerHTML = html;
@@ -466,21 +487,21 @@ Return ONLY this JSON structure with extracted information:
         
         recentPhotos.forEach(photo => {
             const card = document.createElement('div');
-            card.className = 'preview-card' + (openaiApiKey ? ' has-details' : '');
+            card.className = 'bg-slate-900/80 rounded-2xl overflow-hidden border border-slate-800 hover:border-emerald-500/50 transition-all hover:shadow-xl hover:shadow-emerald-500/10';
             
             const img = document.createElement('img');
             img.src = photo.url;
-            img.className = 'preview-image';
+            img.className = 'w-full aspect-square object-cover';
             
             const info = document.createElement('div');
-            info.className = 'preview-info';
+            info.className = 'p-3 border-t border-slate-800';
             
             const time = document.createElement('div');
-            time.className = 'preview-time';
-            time.textContent = `🕒 ${formatTime(photo.timestamp)}`;
+            time.className = 'text-xs text-slate-500 flex items-center gap-1';
+            time.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>${formatTime(photo.timestamp)}`;
             
             const filename = document.createElement('div');
-            filename.className = 'preview-filename';
+            filename.className = 'text-xs text-slate-600 font-mono mt-1 truncate';
             filename.textContent = photo.filename;
             
             info.appendChild(time);

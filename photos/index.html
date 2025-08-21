@@ -1,108 +1,287 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eBay Product Photo Studio</title>
     
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        body { font-family: 'Space Grotesk', sans-serif; }
+        
+        /* Custom animations */
+        @keyframes flash {
+            0% { opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { opacity: 0; }
+        }
+        .flash-animation {
+            animation: flash 0.3s ease-out;
+        }
+        
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-enter {
+            animation: slideInRight 0.4s ease-out;
+        }
+        
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; transform: translateY(-10px); }
+        }
+        .toast-exit {
+            animation: fadeOut 0.3s ease-out;
+        }
+        
+        /* Crop guide overlay */
+        .crop-guide-overlay {
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+        }
+        
+        /* Grid pattern for crop guide */
+        .grid-pattern {
+            background-image: 
+                linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 33.33% 33.33%;
+        }
+        
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: linear-gradient(to bottom, #10b981, #059669);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(to bottom, #34d399, #10b981);
+        }
+        
+        /* Animated gradient background */
+        @keyframes gradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .animated-gradient {
+            background: linear-gradient(-45deg, #0f172a, #1e293b, #0f172a, #1e293b);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+        }
+        
+        /* Glow effects */
+        .glow-emerald {
+            box-shadow: 0 0 30px rgba(16, 185, 129, 0.3);
+        }
+        
+        .text-glow {
+            text-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+        }
+        
+        /* Pulse animation */
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .pulse-glow {
+            animation: pulse-glow 2s ease-in-out infinite;
+        }
+    </style>
 </head>
-<body>
-    <div class="flash-overlay" id="flash"></div>
+<body class="h-full bg-slate-950 text-white overflow-hidden animated-gradient">
+    <!-- Flash Overlay -->
+    <div id="flash" class="fixed inset-0 bg-white opacity-0 pointer-events-none z-50"></div>
     
-    <!-- Toast Notification -->
-    <div class="toast-container" id="toastContainer"></div>
+    <!-- Toast Container -->
+    <div id="toastContainer" class="fixed top-20 right-6 z-40 space-y-3"></div>
     
-    <!-- OpenAI API Key Modal -->
-    <div class="modal fade" id="apiKeyModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">OpenAI API Configuration</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="apiKeyInput" class="form-label">OpenAI API Key</label>
-                        <input type="password" class="form-control" id="apiKeyInput" placeholder="sk-...">
-                        <div class="form-text">Your API key is stored locally and never sent anywhere except OpenAI.</div>
+    <!-- API Key Modal -->
+    <div id="apiKeyModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <!-- Backdrop -->
+            <div class="fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm transition-opacity" onclick="closeModal()"></div>
+            
+            <!-- Modal Content -->
+            <div class="relative bg-slate-900 border border-slate-800 rounded-3xl max-w-md w-full p-8 shadow-2xl glow-emerald">
+                <div class="absolute inset-0 bg-gradient-to-br from-emerald-900/20 to-teal-900/20 rounded-3xl pointer-events-none"></div>
+                
+                <div class="relative">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-bold bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+                            API Configuration
+                        </h3>
+                        <button onclick="closeModal()" class="text-slate-500 hover:text-white transition-all hover:rotate-90 duration-300">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
                     </div>
-                    <div class="alert alert-info">
-                        <small>💡 The API will analyze captured images to extract product details (cards, Hot Wheels, collectibles) and generate eBay listing titles.</small>
+                    
+                    <div class="space-y-5">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-300 mb-2">OpenAI API Key</label>
+                            <input type="password" id="apiKeyInput" 
+                                class="w-full px-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all placeholder-slate-500"
+                                placeholder="sk-...">
+                            <p class="mt-2 text-xs text-slate-500">Your API key is stored locally and never sent anywhere except OpenAI.</p>
+                        </div>
+                        
+                        <div class="bg-gradient-to-r from-emerald-900/30 to-teal-900/30 border border-emerald-800/50 rounded-xl p-4">
+                            <p class="text-sm text-emerald-300 flex items-start gap-2">
+                                <span class="text-lg">✨</span>
+                                <span>AI will analyze your product photos and generate optimized eBay listing titles automatically.</span>
+                            </p>
+                        </div>
+                        
+                        <div class="flex gap-3 justify-end pt-2">
+                            <button onclick="clearApiKey()" 
+                                class="px-5 py-2.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl transition-all border border-red-500/50">
+                                Clear Key
+                            </button>
+                            <button onclick="closeModal()" 
+                                class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-xl transition-all">
+                                Cancel
+                            </button>
+                            <button onclick="saveApiKey()" 
+                                class="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 rounded-xl transition-all font-semibold shadow-lg hover:shadow-emerald-500/25">
+                                Save Key
+                            </button>
+                        </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-danger" id="clearApiKey">Clear Key</button>
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="saveApiKey">Save Key</button>
                 </div>
             </div>
         </div>
     </div>
     
-    <!-- Top Header Bar -->
-    <div class="header-bar">
-        <div class="header-content">
-            <div class="header-left">
-                <h1>Product Photo Studio</h1>
-            </div>
-            <div class="header-center">
-                <div class="camera-selector" id="camera-selector-container" style="display: none;">
-                    <select id="camera-select" class="camera-dropdown">
+    <!-- Main Layout -->
+    <div class="h-full flex flex-col">
+        <!-- Header Bar -->
+        <header class="flex-shrink-0 h-16 bg-slate-900/50 backdrop-blur-xl border-b border-slate-800/50">
+            <div class="h-full px-6 flex items-center justify-between">
+                <!-- Logo/Title -->
+                <div class="flex items-center gap-4">
+                    <div class="relative">
+                        <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30 pulse-glow">
+                            <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            </svg>
+                        </div>
+                        <div class="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold text-white">
+                            Photo Studio
+                        </h1>
+                        <p class="text-xs text-slate-500">Professional eBay Listings</p>
+                    </div>
+                </div>
+                
+                <!-- Camera Selector (hidden by default) -->
+                <div id="camera-selector-container" class="hidden flex items-center gap-3">
+                    <select id="camera-select" 
+                        class="px-4 py-2 bg-slate-800/50 border border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:border-transparent backdrop-blur">
                         <option value="">Loading cameras...</option>
                     </select>
-                    <span class="resolution-display" id="camera-resolution"></span>
+                    <span id="camera-resolution" class="text-xs px-3 py-1.5 bg-emerald-900/30 text-emerald-400 rounded-lg font-mono"></span>
+                </div>
+                
+                <!-- API Status -->
+                <div class="flex items-center gap-3">
+                    <div id="apiStatus" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium"></div>
+                    <button id="configureApi" 
+                        class="px-4 py-2 text-sm border-2 border-slate-700 hover:border-emerald-500 hover:text-emerald-400 rounded-xl transition-all font-medium hover:shadow-lg hover:shadow-emerald-500/20">
+                        Configure API
+                    </button>
                 </div>
             </div>
-            <div class="header-right">
-                <span id="apiStatus" class="api-status-indicator"></span>
-                <button class="btn btn-sm btn-outline-primary" id="configureApi">Configure API</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Main Content Area -->
-    <div class="main-content">
-        <!-- Left Side - Video -->
-        <div class="video-section">
-            <div id="video-container">
-                <div class="video-wrapper">
-                    <video id="video" autoplay playsinline></video>
-                    <div class="crop-guide" id="cropGuide">
-                        <div class="guide-label">Square Crop</div>
+        </header>
+        
+        <!-- Main Content -->
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Video Section - Left -->
+            <div class="w-1/2 flex items-start justify-center p-8 pt-12">
+                <div class="relative group">
+                    <!-- Decorative elements -->
+                    <div class="absolute -inset-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-3xl blur opacity-25 group-hover:opacity-40 transition duration-1000"></div>
+                    
+                    <div id="video-container" class="relative bg-slate-900 rounded-3xl p-4 shadow-2xl max-w-lg w-full border border-slate-800">
+                        <div class="relative aspect-[4/3] bg-black rounded-2xl overflow-hidden">
+                            <video id="video" autoplay playsinline class="w-full h-full object-cover"></video>
+                            <div id="cropGuide" class="absolute border-2 border-emerald-400 rounded-xl crop-guide-overlay pointer-events-none">
+                                <div class="absolute -top-8 left-1/2 -translate-x-1/2 px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-xs font-bold rounded-full shadow-lg">
+                                    CROP AREA
+                                </div>
+                                <div class="absolute inset-0 grid-pattern rounded-xl"></div>
+                                <!-- Corner markers -->
+                                <div class="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-emerald-400 rounded-tl"></div>
+                                <div class="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-emerald-400 rounded-tr"></div>
+                                <div class="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-emerald-400 rounded-bl"></div>
+                                <div class="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-emerald-400 rounded-br"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                <canvas id="canvas" class="hidden"></canvas>
             </div>
-            <canvas id="canvas"></canvas>
+            
+            <!-- Captures Section - Right -->
+            <div class="flex-1 flex flex-col p-8 pt-12">
+                <!-- Header -->
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold mb-3 bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+                        Recent Captures
+                    </h2>
+                    <div class="flex items-center gap-4 text-slate-400 text-sm">
+                        <div class="flex items-center gap-2">
+                            <kbd class="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg font-mono text-xs shadow-lg">Space</kbd>
+                            <span>Quick Capture</span>
+                        </div>
+                        <span class="text-slate-700">•</span>
+                        <div class="flex items-center gap-2">
+                            <kbd class="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 rounded-lg font-mono text-xs shadow-lg">⇧ Space</kbd>
+                            <span>AI Analysis</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Captures Grid -->
+                <div id="previews" class="flex-1 grid grid-cols-2 gap-5 overflow-y-auto custom-scrollbar pr-3">
+                    <!-- Preview cards will be inserted here -->
+                </div>
+            </div>
         </div>
         
-        <!-- Right Side - Captures -->
-        <div class="captures-section">
-            <div class="captures-header">
-                <h3>Recent Captures</h3>
-                <div class="captures-help">Space = capture • Shift+Space = AI analysis</div>
-            </div>
-            <div id="previews" class="captures-grid">
-                <!-- Preview images will be inserted here -->
+        <!-- Floating Keyboard Hint -->
+        <div class="fixed bottom-8 left-1/2 -translate-x-1/2 px-6 py-3 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-slate-800 shadow-2xl">
+            <div class="flex items-center gap-6 text-sm">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500">Quick:</span>
+                    <kbd class="px-3 py-1 bg-slate-800 border border-slate-700 rounded-lg font-mono text-xs">Space</kbd>
+                </div>
+                <div class="w-px h-4 bg-slate-700"></div>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500">AI Mode:</span>
+                    <kbd class="px-3 py-1 bg-gradient-to-r from-emerald-600/20 to-teal-600/20 border border-emerald-500/50 rounded-lg font-mono text-xs text-emerald-400">⇧ Space</kbd>
+                </div>
             </div>
         </div>
     </div>
     
-    <div class="shortcuts-hint">
-        💡 <strong>Space</strong> = Capture | <strong>Shift+Space</strong> = Capture + AI
-    </div>
-
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Custom JavaScript -->
     <script src="app.js"></script>
 </body>
 </html>
