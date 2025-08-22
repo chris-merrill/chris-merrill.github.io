@@ -45,7 +45,7 @@ function init() {
     
     // Initialize Web Worker for image processing
     try {
-        imageWorker = new Worker('/photos/image-worker.js');
+        imageWorker = new Worker('image-worker.js');
     } catch (err) {
         console.warn('Web Worker not available, falling back to main thread processing');
     }

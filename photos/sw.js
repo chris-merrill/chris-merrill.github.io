@@ -1,9 +1,10 @@
 // Simple service worker for caching
 const CACHE_NAME = 'photo-studio-v1';
 const urlsToCache = [
-  '/photos/',
-  '/photos/index.html',
-  '/photos/app.js'
+  './',
+  './index.html',
+  './app.js',
+  './image-worker.js'
 ];
 
 self.addEventListener('install', event => {
