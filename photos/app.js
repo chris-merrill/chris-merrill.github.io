@@ -58,6 +58,9 @@ function init() {
         qualitySelect.value = savedQuality;
     }
     
+    // Initialize photo counter
+    updatePhotoCounter();
+    
     // Toast notification function
     function showToast(title, subtitle) {
         const toastContainer = document.getElementById('toastContainer');
@@ -322,6 +325,53 @@ function init() {
     
     // Make downloadAllPhotos globally accessible
     window.downloadAllPhotos = downloadAllPhotos;
+    
+    // Clear all photos
+    function clearAllPhotos() {
+        if (recentPhotos.length === 0) {
+            showToast('No photos to clear', '');
+            return;
+        }
+        
+        if (confirm(`Clear all ${recentPhotos.length} photos?`)) {
+            // Clean up resources
+            recentPhotos.forEach(photo => {
+                if (photo.url) URL.revokeObjectURL(photo.url);
+                delete photo.frontBase64;
+                delete photo.blob;
+                delete photo.analysisData;
+            });
+            
+            // Clear array and update UI
+            recentPhotos = [];
+            updatePreviews();
+            showToast('All photos cleared', '');
+        }
+    }
+    
+    // Copy all titles
+    function copyAllTitles() {
+        const titles = recentPhotos
+            .filter(p => p.analysisData && p.analysisData.title)
+            .map(p => p.analysisData.title);
+        
+        if (titles.length === 0) {
+            showToast('No titles to copy', 'Run AI analysis first');
+            return;
+        }
+        
+        const allTitles = titles.join('\n');
+        navigator.clipboard.writeText(allTitles).then(() => {
+            showToast('All Titles Copied! ✅', `${titles.length} title${titles.length > 1 ? 's' : ''} copied`);
+        }).catch(err => {
+            console.error('Failed to copy titles:', err);
+            showToast('⚠️ Copy Failed', 'Please copy manually');
+        });
+    }
+    
+    // Make functions globally accessible
+    window.clearAllPhotos = clearAllPhotos;
+    window.copyAllTitles = copyAllTitles;
     
     // Convert blob to base64 with size optimization
     function blobToBase64(blob, maxWidth = 1000) {
@@ -766,8 +816,20 @@ Return ONLY this JSON structure with extracted information:
         }, 'image/jpeg', 0.92);
     }
     
+    // Update photo counter
+    function updatePhotoCounter() {
+        const counter = document.getElementById('photoCounter');
+        if (counter) {
+            const titlesCount = recentPhotos.filter(p => p.analysisData && p.analysisData.title).length;
+            counter.textContent = `${recentPhotos.length}/4 photos${titlesCount > 0 ? ` • ${titlesCount} with AI titles` : ''}`;
+        }
+    }
+    
     // Update previews with performance optimization
     function updatePreviews() {
+        // Update counter
+        updatePhotoCounter();
+        
         // Use DocumentFragment for better performance
         const fragment = document.createDocumentFragment();
         
@@ -905,6 +967,15 @@ Return ONLY this JSON structure with extracted information:
     
     // Resize handler
     window.addEventListener('resize', updateCropGuide);
+    
+    // Prevent accidental page refresh/close when photos exist
+    window.addEventListener('beforeunload', function(e) {
+        if (recentPhotos.length > 0) {
+            e.preventDefault();
+            e.returnValue = 'You have unsaved photos. Are you sure you want to leave?';
+            return e.returnValue;
+        }
+    });
     
     // Start
     getCameras();
